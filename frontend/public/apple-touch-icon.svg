@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" fill="none">
+  <!-- White rounded background for Apple -->
+  <rect width="180" height="180" rx="40" fill="#ffffff"/>
+
+  <!-- Outer cube -->
+  <path d="M90 15 L158 54 L158 126 L90 165 L22 126 L22 54 Z"
+        fill="#1a2332"/>
+
+  <!-- Top face -->
+  <path d="M90 15 L158 54 L90 93 L22 54 Z"
+        fill="#2d3f55"/>
+
+  <!-- Left face -->
+  <path d="M22 54 L90 93 L90 165 L22 126 Z"
+        fill="#111827"/>
+
+  <!-- Right face -->
+  <path d="M158 54 L90 93 L90 165 L158 126 Z"
+        fill="#243347"/>
+
+  <!-- T letter -->
+  <rect x="55" y="60" width="70" height="20" fill="#e8ecf2" rx="2"/>
+  <rect x="75" y="80" width="30" height="55" fill="#dde4ed" rx="2"/>
+
+  <!-- Highlights -->
+  <path d="M55 60 L125 60 L118 53 L62 53 Z" fill="#f0f4f8" opacity="0.6"/>
+  <rect x="105" y="60" width="20" height="20" fill="#b0bac7" opacity="0.4"/>
+  <rect x="105" y="80" width="0" height="55" fill="#adb7c4" opacity="0.3"/>
+</svg>

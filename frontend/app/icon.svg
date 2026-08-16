@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Outer cube body -->
+  <path d="M16 1 L30 9 L30 23 L16 31 L2 23 L2 9 Z"
+        fill="#1a2332"/>
+
+  <!-- Top face (lighter) -->
+  <path d="M16 1 L30 9 L16 17 L2 9 Z"
+        fill="#2d3f55"/>
+
+  <!-- Left face (darkest) -->
+  <path d="M2 9 L16 17 L16 31 L2 23 Z"
+        fill="#111827"/>
+
+  <!-- Right face (mid) -->
+  <path d="M30 9 L16 17 L16 31 L30 23 Z"
+        fill="#243347"/>
+
+  <!-- T — horizontal bar (top-face highlight) -->
+  <path d="M9 11 L23 11 L18.5 8.5 L13.5 8.5 Z"
+        fill="#f0f4f8" opacity="0.55"/>
+
+  <!-- T — horizontal bar body -->
+  <rect x="9" y="11" width="14" height="5" fill="#e8ecf2" rx="0.5"/>
+
+  <!-- T — vertical stem body -->
+  <rect x="13" y="16" width="6" height="12" fill="#dde4ed" rx="0.5"/>
+
+  <!-- T — right shadow on bar -->
+  <rect x="20" y="11" width="3" height="5" fill="#b0bac7" opacity="0.6"/>
+
+  <!-- T — right shadow on stem -->
+  <rect x="19" y="16" width="0" height="12" fill="#adb7c4" opacity="0.5"/>
+</svg>

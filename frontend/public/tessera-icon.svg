@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Outer cube -->
+  <path d="M24 2 L44 13 L44 35 L24 46 L4 35 L4 13 Z"
+        fill="#1a2332" stroke="#1a2332" stroke-width="1" stroke-linejoin="round"/>
+
+  <!-- Top face -->
+  <path d="M24 2 L44 13 L24 24 L4 13 Z"
+        fill="#2d3f55"/>
+
+  <!-- Left face -->
+  <path d="M4 13 L24 24 L24 46 L4 35 Z"
+        fill="#111827"/>
+
+  <!-- Right face -->
+  <path d="M44 13 L24 24 L24 46 L44 35 Z"
+        fill="#243347"/>
+
+  <!-- T letter — horizontal bar top face -->
+  <path d="M14 17 L34 17 L24 22 L4 13 Z" fill="none"/>
+  <path d="M14 17 L34 17 L28 20 L20 20 Z"
+        fill="#e8ecf2"/>
+
+  <!-- T horizontal bar front -->
+  <rect x="14" y="17" width="20" height="5" rx="0.5" fill="#e2e8f0"/>
+
+  <!-- T vertical stem -->
+  <rect x="20" y="22" width="8" height="16" rx="0.5" fill="#dde4ed"/>
+
+  <!-- T top highlight -->
+  <path d="M14 17 L34 17 L32 15 L16 15 Z" fill="#f0f4f8" opacity="0.7"/>
+
+  <!-- T right shadow -->
+  <path d="M34 17 L34 22 L28 25 L28 22 L28 20 Z" fill="#b0bac7"/>
+  <!-- T stem right shadow -->
+  <path d="M28 22 L28 38 L30 37 L30 21 Z" fill="#adb7c4"/>
+</svg>
