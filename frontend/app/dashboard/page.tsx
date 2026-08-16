@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AppTopBar from "@/components/AppTopBar";
@@ -22,7 +22,13 @@ type ViewMode = "grid" | "list";
 export default function DashboardPage() {
   const router = useRouter();
   const { toasts, toast, dismiss } = useToast();
-  const { projects, deleteProject } = useAppStore();
+  const { projects, deleteProject, isAuthed, isLoadingAuth } = useAppStore();
+
+  useEffect(() => {
+    if (!isLoadingAuth && !isAuthed) {
+      router.replace("/");
+    }
+  }, [isAuthed, isLoadingAuth, router]);
 
   const [search, setSearch]               = useState("");
   const [sort, setSort]                   = useState<SortKey>("lastScan");

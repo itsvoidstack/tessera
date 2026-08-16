@@ -105,6 +105,7 @@ export interface Project {
   prevScore: number | null;
   aiAnalysis?: string;
   fileCount?: number;
+  files?: Array<{ path: string; size: number; content: string }>;
 }
 
 export interface AuthUser {

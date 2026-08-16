@@ -211,6 +211,7 @@ function ScanContent() {
 
         // Real number of files from FastAPI
         fileCount: result.file_count,
+        files: result.files,
 
         // We are NOT creating fake issue counts
         issuesCount: 0,

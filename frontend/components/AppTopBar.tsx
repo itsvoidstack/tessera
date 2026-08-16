@@ -35,10 +35,10 @@ export default function AppTopBar({ showBell = false }: AppTopBarProps) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  function handleLogout() {
+  async function handleLogout() {
     setUserOpen(false);
-    logout();
-    router.push("/login");
+    await logout();
+    router.push("/");
   }
 
   return (
@@ -151,8 +151,7 @@ export default function AppTopBar({ showBell = false }: AppTopBarProps) {
                   )}
                 </div>
                 {[
-                  { Icon: User, label: "Profile", action: () => setUserOpen(false) },
-                  { Icon: Settings, label: "Settings", action: () => setUserOpen(false) },
+                  { Icon: Settings, label: "Settings", action: () => { setUserOpen(false); router.push("/settings"); } },
                 ].map(({ Icon, label, action }) => (
                   <button
                     key={label}

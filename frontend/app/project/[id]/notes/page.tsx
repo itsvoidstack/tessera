@@ -1,7 +1,8 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
 import { useAppStore, type Note } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import {
   Plus, Edit3, Download, Trash2, X, Check,
@@ -11,7 +12,9 @@ import {
 function formatDate(iso: string): string {
   try {
     return new Date(iso).toLocaleDateString("en-US", {
-      month: "short", day: "numeric", year: "numeric",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
   } catch {
     return iso;
@@ -19,14 +22,14 @@ function formatDate(iso: string): string {
 }
 
 const AI_NOTE_SECTIONS = [
-  { id: "overview",     title: "Project Overview",                  icon: BookOpen   },
-  { id: "architecture", title: "Architecture",                      icon: Layers     },
-  { id: "auth",         title: "Authentication",                    icon: Lock       },
-  { id: "database",     title: "Database Layer",                    icon: Database   },
-  { id: "api",          title: "API Layer",                         icon: Code2      },
-  { id: "files",        title: "Important Files",                   icon: GitBranch  },
-  { id: "flow",         title: "Data Flow",                         icon: Lightbulb  },
-  { id: "concepts",     title: "Key Concepts",                      icon: Sparkles   },
+  { id: "overview", title: "Project Overview", icon: BookOpen },
+  { id: "architecture", title: "Architecture", icon: Layers },
+  { id: "auth", title: "Authentication", icon: Lock },
+  { id: "database", title: "Database Layer", icon: Database },
+  { id: "api", title: "API Layer", icon: Code2 },
+  { id: "files", title: "Important Files", icon: GitBranch },
+  { id: "flow", title: "Data Flow", icon: Lightbulb },
+  { id: "concepts", title: "Key Concepts", icon: Sparkles },
   { id: "contributing", title: "Things to Know Before Contributing", icon: UserCheck },
 ];
 
@@ -43,11 +46,44 @@ export default function NotesPage({ params }: { params: Promise<{ id: string }> 
   const [titleDraft, setTitleDraft] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
+  // Fetch persisted notes from Supabase database on mount
+  useEffect(() => {
+    async function fetchDatabaseNotes() {
+      if (!id) return;
+      try {
+        const { data, error } = await supabase
+          .from("notes")
+          .select("*")
+          .eq("project_id", id)
+          .order("created_at", { ascending: false });
+
+        if (!error && data && data.length > 0) {
+          data.forEach((n) => {
+            const fetchedNote: Note = {
+              id: n.id,
+              title: n.title,
+              preview: n.preview || "",
+              content: n.content || "",
+              date: n.date || n.created_at,
+              tags: n.tags || ["Personal"],
+            };
+            addNote(id, fetchedNote);
+          });
+        }
+      } catch {
+        // Fallback safely if table doesn't exist yet or offline
+      }
+    }
+    fetchDatabaseNotes();
+  }, [id, addNote]);
+
   if (!project) {
     return (
       <div className="flex flex-col items-center justify-center h-full py-24 text-center px-8">
         <div className="text-3xl mb-3">🔍</div>
-        <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Project not found</h2>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
+          Project not found
+        </h2>
         <button
           onClick={() => router.push("/dashboard")}
           className="px-4 py-2 bg-[#1a5c38] text-white rounded-lg text-xs font-medium hover:bg-[#145230] transition-colors"
@@ -62,44 +98,93 @@ export default function NotesPage({ params }: { params: Promise<{ id: string }> 
   const effectiveActiveId = activeNoteId ?? personalNotes[0]?.id ?? null;
   const activePersonalNote = personalNotes.find((n) => n.id === effectiveActiveId) ?? null;
 
-  function handleAddPersonalNote() {
+  async function handleAddPersonalNote() {
+    const newNoteId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
     const newNote: Note = {
-      id: String(Date.now()),
+      id: newNoteId,
       title: "Untitled Personal Note",
       preview: "Start writing...",
       date: new Date().toISOString(),
       tags: ["Personal"],
       content: "",
     };
+
     addNote(id, newNote);
     setActiveNoteId(newNote.id);
     setActiveTab("personal");
     setTitleDraft("Untitled Personal Note");
     setEditingTitle(true);
+
+    // Persist to Supabase database
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("notes").insert({
+          id: newNote.id,
+          user_id: user.id,
+          project_id: id,
+          title: newNote.title,
+          preview: newNote.preview,
+          content: newNote.content,
+          tags: newNote.tags,
+        });
+      }
+    } catch {
+      // Ignore database offline errors
+    }
   }
 
-  function handleContentChange(content: string) {
+  async function handleContentChange(content: string) {
     if (!effectiveActiveId) return;
     const preview = content.replace(/#+\s*/g, "").replace(/\n/g, " ").slice(0, 60) || "Empty note";
+    const nowIso = new Date().toISOString();
     updateNote(id, effectiveActiveId, {
       content,
       preview,
-      date: new Date().toISOString(),
+      date: nowIso,
     });
+
+    // Update in Supabase database
+    try {
+      await supabase
+        .from("notes")
+        .update({ content, preview, date: nowIso })
+        .eq("id", effectiveActiveId);
+    } catch {
+      // Ignore database offline errors
+    }
   }
 
-  function commitTitle() {
+  async function commitTitle() {
     if (!effectiveActiveId || !titleDraft.trim()) return;
-    updateNote(id, effectiveActiveId, { title: titleDraft.trim() });
+    const cleanTitle = titleDraft.trim();
+    updateNote(id, effectiveActiveId, { title: cleanTitle });
     setEditingTitle(false);
+
+    // Update in Supabase database
+    try {
+      await supabase
+        .from("notes")
+        .update({ title: cleanTitle })
+        .eq("id", effectiveActiveId);
+    } catch {
+      // Ignore database offline errors
+    }
   }
 
-  function handleDeleteNote(noteId: string) {
+  async function handleDeleteNote(noteId: string) {
     deleteNote(id, noteId);
     setDeleteConfirm(null);
     if (effectiveActiveId === noteId) {
       const remaining = personalNotes.filter((n) => n.id !== noteId);
       setActiveNoteId(remaining[0]?.id ?? null);
+    }
+
+    // Delete from Supabase database
+    try {
+      await supabase.from("notes").delete().eq("id", noteId);
+    } catch {
+      // Ignore database offline errors
     }
   }
 
@@ -194,7 +279,7 @@ export default function NotesPage({ params }: { params: Promise<{ id: string }> 
               </div>
             </div>
 
-            {/* AI Note Content Placeholder */}
+            {/* AI Note Content */}
             <div className="flex-1 overflow-y-auto p-8 max-w-4xl">
               <div className="flex items-center gap-2.5 mb-2">
                 <currentAiSec.icon size={20} className="text-[#1a5c38] dark:text-green-400" />
@@ -204,22 +289,28 @@ export default function NotesPage({ params }: { params: Promise<{ id: string }> 
                 Automated codebase breakdown for <strong className="text-gray-700 dark:text-gray-200">{project.owner}/{project.repo}</strong>.
               </p>
 
-              {/* Pending backend analysis state */}
-              <div className="border border-gray-200 dark:border-gray-800 rounded-xl p-10 text-center bg-gray-50/40 dark:bg-gray-900/40 my-4">
-                <div className="w-12 h-12 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center mx-auto mb-3 shadow-sm">
-                  <Sparkles size={20} className="text-[#1a5c38] dark:text-green-400" />
+              {project.aiAnalysis ? (
+                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6 shadow-sm">
+                  <div className="prose dark:prose-invert text-xs leading-relaxed font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200">
+                    {project.aiAnalysis}
+                  </div>
                 </div>
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
-                  AI Notes Pending Analysis
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-4 leading-relaxed">
-                  When connected to the FastAPI backend API, the Learning Agent will automatically synthesize
-                  student-style notes explaining the repository&apos;s {currentAiSec.title.toLowerCase()}.
-                </p>
-                <div className="inline-flex items-center gap-2 text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-gray-600 dark:text-gray-300 font-mono">
-                  {project.owner}/{project.repo} · {project.language || "Codebase"}
+              ) : (
+                <div className="border border-gray-200 dark:border-gray-800 rounded-xl p-10 text-center bg-gray-50/40 dark:bg-gray-900/40 my-4">
+                  <div className="w-12 h-12 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center mx-auto mb-3 shadow-sm">
+                    <Sparkles size={20} className="text-[#1a5c38] dark:text-green-400" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+                    AI Notes Pending Analysis
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-4 leading-relaxed">
+                    Run repository scan to generate automated learning notes explaining {currentAiSec.title.toLowerCase()}.
+                  </p>
+                  <div className="inline-flex items-center gap-2 text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-gray-600 dark:text-gray-300 font-mono">
+                    {project.owner}/{project.repo} · {project.language || "Codebase"}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         ) : (
@@ -283,10 +374,10 @@ export default function NotesPage({ params }: { params: Promise<{ id: string }> 
                         }}
                         className="text-lg font-bold text-gray-900 dark:text-white outline-none border-b-2 border-[#1a5c38] dark:border-green-400 bg-transparent flex-1"
                       />
-                      <button onClick={commitTitle} className="p-1 text-[#1a5c38] dark:text-green-400">
+                      <button onClick={commitTitle} className="p-1 text-[#1a5c38] dark:text-green-400 cursor-pointer">
                         <Check size={14} />
                       </button>
-                      <button onClick={() => setEditingTitle(false)} className="p-1 text-gray-400 dark:text-gray-500">
+                      <button onClick={() => setEditingTitle(false)} className="p-1 text-gray-400 dark:text-gray-500 cursor-pointer">
                         <X size={14} />
                       </button>
                     </div>
@@ -295,7 +386,7 @@ export default function NotesPage({ params }: { params: Promise<{ id: string }> 
                       {activePersonalNote.title}
                       <button
                         onClick={() => { setTitleDraft(activePersonalNote.title); setEditingTitle(true); }}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors cursor-pointer"
                       >
                         <Edit3 size={13} className="text-gray-400 dark:text-gray-500" />
                       </button>
@@ -305,13 +396,13 @@ export default function NotesPage({ params }: { params: Promise<{ id: string }> 
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleExportMarkdown}
-                      className="p-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs flex items-center gap-1 border border-gray-200 dark:border-gray-700 transition-colors"
+                      className="p-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs flex items-center gap-1 border border-gray-200 dark:border-gray-700 transition-colors cursor-pointer"
                     >
                       <Download size={12} /> Export
                     </button>
                     <button
                       onClick={() => setDeleteConfirm(activePersonalNote.id)}
-                      className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 dark:text-red-400 text-xs flex items-center gap-1 transition-colors"
+                      className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 dark:text-red-400 text-xs flex items-center gap-1 transition-colors cursor-pointer"
                     >
                       <Trash2 size={12} />
                     </button>
