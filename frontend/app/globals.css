@@ -1,0 +1,272 @@
+@import "tailwindcss";
+
+/*
+ * Tailwind v4 dark mode — use class strategy so ThemeProvider's
+ * classList.add("dark") / classList.remove("dark") on <html> actually
+ * activates the dark: utilities. Without this, v4 defaults to the
+ * prefers-color-scheme media query and ignores the .dark class entirely.
+ */
+@variant dark (&:where(.dark, .dark *));
+
+/* ─── Smooth scroll ──────────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ─── CSS variables ──────────────────────────────────────────────────────── */
+:root {
+  --background: #ffffff;
+  --foreground: #111827;
+  --muted:      #6b7280;
+  --border:     #e5e7eb;
+  --card:       #ffffff;
+  --accent:     #1a5c38;
+  --accent-hover: #145230;
+  --sidebar-bg:     #ffffff;
+  --sidebar-border: #f0f0f0;
+
+  /* Typography */
+  --line-height-body:    1.65;
+  --line-height-heading: 1.15;
+  --letter-spacing-tight: -0.015em;
+}
+
+html.dark {
+  --background: #0b0f17;
+  --foreground: #f1f5f9;
+  --muted:      #94a3b8;
+  --border:     #1e293b;
+  --card:       #111827;
+  --accent:     #22c55e;
+  --accent-hover: #16a34a;
+  --sidebar-bg:     #0f172a;
+  --sidebar-border: #1e293b;
+  color-scheme: dark;
+}
+
+/* ─── Body ───────────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background:  var(--background);
+  color:       var(--foreground);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: var(--line-height-body);
+  -webkit-font-smoothing:  antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html.dark body {
+  background-color: #0b0f17;
+  color: #f1f5f9;
+}
+
+/* Headings — tighter line-height and tracking */
+h1, h2, h3, h4, h5, h6 {
+  line-height:     var(--line-height-heading);
+  letter-spacing:  var(--letter-spacing-tight);
+  font-weight:     700;
+}
+
+/* Paragraph readability */
+p {
+  line-height: var(--line-height-body);
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background:    #d1d5db;
+  border-radius: 4px;
+}
+html.dark ::-webkit-scrollbar-thumb { background: #334155; }
+::-webkit-scrollbar-thumb:hover      { background: #9ca3af; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* ─── Score ring & health bar ────────────────────────────────────────────── */
+.score-ring {
+  transform:        rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.health-bar {
+  height:        6px;
+  border-radius: 3px;
+  background:    #e5e7eb;
+  overflow:      hidden;
+}
+html.dark .health-bar { background: #1e293b; }
+
+.health-bar-fill {
+  height:        100%;
+  border-radius: 3px;
+  transition:    width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ─── Code syntax colours ────────────────────────────────────────────────── */
+.code-keyword { color: #818cf8; }
+.code-string  { color: #34d399; }
+.code-comment { color: #9ca3af; }
+.code-number  { color: #fb923c; }
+.code-fn      { color: #60a5fa; }
+
+/* ─── Hover card lift ────────────────────────────────────────────────────── */
+.hover-card-lift {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.2s ease;
+}
+.hover-card-lift:hover {
+  transform:   translateY(-2px);
+  box-shadow:  0 8px 24px -4px rgba(0, 0, 0, 0.07), 0 4px 8px -2px rgba(0, 0, 0, 0.04);
+}
+html.dark .hover-card-lift:hover {
+  box-shadow:  0 8px 24px -4px rgba(0, 0, 0, 0.4), 0 4px 8px -2px rgba(0, 0, 0, 0.3);
+}
+
+/* ─── Float animation (hero diagram) ────────────────────────────────────── */
+/* 14 px travel, 8 s period — more noticeable but still calm */
+@keyframes floatSubtle {
+  0%, 100% { transform: translateY(0px);   }
+  50%       { transform: translateY(-14px); }
+}
+
+.animate-float-subtle {
+  animation: floatSubtle 8s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ─── Hero diagram node animations ──────────────────────────────────────── */
+/*
+ * Six independent "bob" keyframes — each node drifts to a slightly
+ * different position so they feel independently alive while the whole
+ * card still floats as one unit.  Amplitudes are tiny (≤4 px Y, ≤2 px X)
+ * so nodes never visually disconnect from their edges.
+ */
+@keyframes nodeBob0 {
+  0%, 100% { transform: translate(0px,  0px);   opacity: 1;    }
+  40%       { transform: translate(1px, -3px);   opacity: 0.92; }
+  70%       { transform: translate(-1px, 2px);   opacity: 0.96; }
+}
+@keyframes nodeBob1 {
+  0%, 100% { transform: translate(0px,  0px);   opacity: 1;    }
+  35%       { transform: translate(-2px,-2px);   opacity: 0.90; }
+  65%       { transform: translate(1px,  3px);   opacity: 0.95; }
+}
+@keyframes nodeBob2 {
+  0%, 100% { transform: translate(0px,  0px);   opacity: 1;    }
+  30%       { transform: translate(2px, -1px);   opacity: 0.93; }
+  60%       { transform: translate(-1px, 2px);   opacity: 0.97; }
+}
+@keyframes nodeBob3 {
+  0%, 100% { transform: translate(0px,  0px);   opacity: 1;    }
+  45%       { transform: translate(-1px,-3px);   opacity: 0.91; }
+  75%       { transform: translate(2px,  1px);   opacity: 0.94; }
+}
+@keyframes nodeBob4 {
+  0%, 100% { transform: translate(0px,  0px);   opacity: 1;    }
+  38%       { transform: translate(1px, -2px);   opacity: 0.93; }
+  68%       { transform: translate(-2px, 1px);   opacity: 0.96; }
+}
+@keyframes nodeBob5 {
+  0%, 100% { transform: translate(0px,  0px);   opacity: 1;    }
+  42%       { transform: translate(-1px,-1px);   opacity: 0.90; }
+  72%       { transform: translate(1px,  3px);   opacity: 0.95; }
+}
+
+.hero-node-0 { animation: nodeBob0 7.2s ease-in-out infinite; }
+.hero-node-1 { animation: nodeBob1 8.6s ease-in-out infinite 0.8s; }
+.hero-node-2 { animation: nodeBob2 6.8s ease-in-out infinite 1.6s; }
+.hero-node-3 { animation: nodeBob3 9.1s ease-in-out infinite 0.4s; }
+.hero-node-4 { animation: nodeBob4 7.5s ease-in-out infinite 2.0s; }
+.hero-node-5 { animation: nodeBob5 8.0s ease-in-out infinite 1.2s; }
+
+/* ─── Hero diagram particle (data-flow dot on edges) ────────────────────── */
+/*
+ * The particle opacity pulses slightly so it reads as a travelling packet
+ * rather than a static dot.  The actual movement is driven by SVG
+ * animateMotion on each <circle>, so this only handles the fade.
+ */
+@keyframes particleFade {
+  0%, 100% { opacity: 0;    }
+  15%       { opacity: 0.7;  }
+  50%       { opacity: 0.55; }
+  85%       { opacity: 0.7;  }
+}
+
+/* ─── Reduced-motion overrides ───────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .animate-float-subtle,
+  .hero-node-0, .hero-node-1, .hero-node-2,
+  .hero-node-3, .hero-node-4, .hero-node-5 {
+    animation: none !important;
+  }
+}
+
+/* ─── Fade-in / page-enter ────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0px); }
+}
+
+@keyframes fadeInFast {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0px); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0px);  }
+}
+
+/* Main page wrapper */
+.page-enter {
+  animation: fadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Sections / cards staggered */
+.section-enter {
+  animation: fadeInUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Dropdowns, modals, tooltips */
+.animate-fade-in {
+  animation: fadeInFast 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Stagger helpers — apply to children with nth-child via tailwind or inline */
+.stagger-1 { animation-delay: 0.04s; }
+.stagger-2 { animation-delay: 0.08s; }
+.stagger-3 { animation-delay: 0.12s; }
+.stagger-4 { animation-delay: 0.16s; }
+.stagger-5 { animation-delay: 0.20s; }
+
+/* ─── Pulse glow (subtle, for status indicators) ─────────────────────────── */
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.7; }
+  50%       { opacity: 1;   }
+}
+.animate-pulse-glow {
+  animation: pulseGlow 2.5s ease-in-out infinite;
+}
+
+/* ─── Link transitions ────────────────────────────────────────────────────── */
+a {
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+/* ─── Button / interactive focus ring ────────────────────────────────────── */
+button:focus-visible,
+a:focus-visible {
+  outline:        2px solid #1a5c38;
+  outline-offset: 2px;
+  border-radius:  4px;
+}
+html.dark button:focus-visible,
+html.dark a:focus-visible {
+  outline-color: #22c55e;
+}

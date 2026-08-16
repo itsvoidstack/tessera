@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Outer cube hexagon outline -->
+  <path d="M100 8 L180 54 L180 146 L100 192 L20 146 L20 54 Z"
+        fill="#1a2332" stroke="#1a2332" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- Top face of cube (lighter) -->
+  <path d="M100 8 L180 54 L100 100 L20 54 Z"
+        fill="#2d3f55"/>
+
+  <!-- Left face of cube (darkest) -->
+  <path d="M20 54 L100 100 L100 192 L20 146 Z"
+        fill="#111827"/>
+
+  <!-- Right face of cube (mid tone) -->
+  <path d="M180 54 L100 100 L100 192 L180 146 Z"
+        fill="#243347"/>
+
+  <!-- ===  T letter extruded into cube === -->
+
+  <!-- T horizontal bar top — top face projection -->
+  <path d="M62 72 L138 72 L138 80 L120 88 L80 88 L62 80 Z"
+        fill="#e8ecf2"/>
+
+  <!-- T horizontal bar — left side face -->
+  <path d="M62 72 L62 80 L80 88 L80 96 L70 91 L70 83 L62 80 Z"
+        fill="#c5ccd6"/>
+
+  <!-- T horizontal bar — right side face -->
+  <path d="M138 72 L138 80 L120 88 L120 96 L130 91 L130 83 L138 80 Z"
+        fill="#b0bac7"/>
+
+  <!-- T vertical stem — top face projection -->
+  <path d="M88 88 L112 88 L112 96 L100 102 L88 96 Z"
+        fill="#e8ecf2"/>
+
+  <!-- T vertical stem extended — top face (going down) -->
+  <path d="M88 96 L112 96 L112 150 L100 156 L88 150 Z"
+        fill="#dde2ea"/>
+
+  <!-- T vertical stem — left face -->
+  <path d="M80 88 L80 96 L88 96 L88 150 L78 144 L78 90 Z"
+        fill="#c5ccd6"/>
+
+  <!-- T vertical stem — right face -->
+  <path d="M120 88 L120 96 L112 96 L112 150 L122 144 L122 90 Z"
+        fill="#adb7c4"/>
+
+  <!-- Highlight edge on top of T bar -->
+  <path d="M62 72 L138 72 L120 64 L80 64 Z"
+        fill="#f0f4f8" opacity="0.6"/>
+
+  <!-- Subtle inner edge lines for depth -->
+  <line x1="100" y1="100" x2="100" y2="192" stroke="#3a4f68" stroke-width="0.5" opacity="0.4"/>
+</svg>
