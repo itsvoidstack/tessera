@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { AppStoreProvider } from "@/lib/store";
 import { ThemeProvider } from "@/lib/theme";
@@ -38,7 +39,9 @@ export default function RootLayout({
       className="h-full"
     >
       <head suppressHydrationWarning>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <Script id="theme-bootstrap" strategy="beforeInteractive">
+          {themeScript}
+        </Script>
       </head>
 
       <body className="min-h-full antialiased transition-colors duration-200">

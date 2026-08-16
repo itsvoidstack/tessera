@@ -35,6 +35,14 @@ npm run dev
 
 Open `http://localhost:3000`. No account or GitHub OAuth is required for the local public-repository flow.
 
+## Testing
+
+Run the backend scoring tests from the repository root:
+
+```bash
+python -m unittest discover -s backend/tests
+```
+
 ## API
 
 - `GET /health` — backend health check
