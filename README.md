@@ -58,6 +58,8 @@ Deploy `backend` and `frontend` separately. Configure these environment variable
 | Backend | `GEMINI_API_KEY` | Gemini API key |
 | Backend | `GITHUB_TOKEN` | Optional GitHub token for higher rate limits |
 | Backend | `FRONTEND_ORIGINS` | Your deployed frontend URL, e.g. `https://your-app.vercel.app` |
+| Backend | `SELF_PING_URL` | Optional URL for automated keep-alive self-pinging (default `http://127.0.0.1:8000/health`), e.g. `https://your-api.onrender.com/health` |
+| Backend | `HEALTHCHECK_INTERVAL_SECONDS` | Interval in seconds between keep-alive pings (default `600` = 10 minutes) |
 | Frontend | `NEXT_PUBLIC_API_URL` | Your deployed backend URL, e.g. `https://your-api.onrender.com` |
 
 Do not use `localhost` or `127.0.0.1` in deployed environment variables.

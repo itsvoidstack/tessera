@@ -5,10 +5,68 @@ from urllib.parse import urlparse
 from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
+from contextlib import asynccontextmanager
 
 import requests
 import os
 import base64
+import asyncio
+import logging
+import time
+
+# -----------------------------------------
+# Logging & Startup state
+# -----------------------------------------
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("tessera_backend")
+START_TIME = time.time()
+
+
+# -----------------------------------------
+# Self-Ping Healthcheck Task (Keeps Backend Awake)
+# -----------------------------------------
+
+async def self_ping_loop():
+    """
+    Background worker that runs every 10 minutes (600s) to keep
+    the backend service active and prevent free-tier hosting (e.g. Render/Railway) from sleeping.
+    """
+    await asyncio.sleep(5)
+    interval = int(os.getenv("HEALTHCHECK_INTERVAL_SECONDS", "600"))
+    logger.info(f"Automated healthcheck loop started (Interval: {interval} seconds / {interval // 60} minutes).")
+
+    while True:
+        try:
+            default_url = os.getenv("RENDER_EXTERNAL_URL", "https://tessera-backend-n7ey.onrender.com").rstrip("/") + "/health"
+            ping_url = os.getenv("SELF_PING_URL", default_url)
+            logger.info(f"[Keep-Alive Healthcheck] Ping sent to: {ping_url}")
+            
+            def ping():
+                return requests.get(ping_url, timeout=10)
+
+            loop = asyncio.get_running_loop()
+            res = await loop.run_in_executor(None, ping)
+            logger.info(f"[Keep-Alive Healthcheck] Status: {res.status_code}")
+        except Exception as e:
+            logger.warning(f"[Keep-Alive Healthcheck] Ping failed: {e}")
+        
+        await asyncio.sleep(interval)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Initializing backend services...")
+    ping_task = asyncio.create_task(self_ping_loop())
+    yield
+    # Shutdown
+    logger.info("Shutting down backend services...")
+    ping_task.cancel()
+    try:
+        await ping_task
+    except asyncio.CancelledError:
+        pass
 
 
 # -----------------------------------------
@@ -42,7 +100,7 @@ if GEMINI_API_KEY:
 # FastAPI
 # -----------------------------------------
 
-app = FastAPI(title="Tessera API")
+app = FastAPI(title="Tessera API", lifespan=lifespan)
 frontend_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -108,8 +166,12 @@ def root():
 
 @app.get("/health")
 def health():
+    uptime_seconds = round(time.time() - START_TIME, 2)
     return {
-        "status": "healthy"
+        "status": "healthy",
+        "uptime_seconds": uptime_seconds,
+        "message": "Tessera backend is active and keep-alive is active 🚀",
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
     }
 
 
