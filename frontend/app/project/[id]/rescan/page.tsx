@@ -73,6 +73,13 @@ export default function RescanPage({
           result.ai_analysis || "Repository rescanned successfully.",
         aiAnalysis: result.ai_analysis ?? undefined,
         fileCount: result.file_count,
+        auditIssues: result.audit_issues,
+        issuesCount: result.audit_issues.length,
+        criticalIssues: result.audit_issues.filter((issue) => issue.severity === "Critical").length,
+        warnings: result.audit_issues.filter(
+          (issue) => issue.severity === "High" || issue.severity === "Medium"
+        ).length,
+        suggestions: result.audit_issues.filter((issue) => issue.severity === "Low").length,
         lastScan: "Just now",
         scanDate,
         scanId,
@@ -84,7 +91,7 @@ export default function RescanPage({
             date: scanDate,
             version: `v${currentProject.scanHistory.length + 1}.0.0`,
             healthScore: result.health_score,
-            issuesFound: 0,
+            issuesFound: result.audit_issues.length,
             status: "completed",
           },
         ],

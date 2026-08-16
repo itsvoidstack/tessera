@@ -50,6 +50,16 @@ export interface ScanResponse {
     performance: number;
   };
   health_score: number;
+  audit_issues: Array<{
+    id: string;
+    title: string;
+    description: string;
+    severity: "Critical" | "High" | "Medium" | "Low";
+    file: string;
+    line: number;
+    category: string;
+    suggestedFix: string;
+  }>;
   scoring_method: string;
 }
 

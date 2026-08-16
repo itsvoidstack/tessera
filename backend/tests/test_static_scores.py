@@ -1,6 +1,6 @@
 import unittest
 
-from backend.main import static_scores
+from backend.main import security_audit_issues, static_scores
 
 
 def repository_tree(*paths: str) -> dict:
@@ -37,6 +37,14 @@ class StaticScoreTests(unittest.TestCase):
         risky_scores, _ = static_scores(tree, [{"content": "eval(user_input)"}])
 
         self.assertLess(risky_scores["security"], safe_scores["security"])
+
+    def test_security_audit_ignores_string_literals_but_flags_code(self):
+        findings = security_audit_issues([
+            {"path": "scanner.py", "content": 'marker = "eval("\neval(user_input)'},
+        ])
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["line"], 2)
 
 
 if __name__ == "__main__":

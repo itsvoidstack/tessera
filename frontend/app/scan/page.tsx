@@ -213,11 +213,13 @@ function ScanContent() {
         fileCount: result.file_count,
         files: result.files,
 
-        // We are NOT creating fake issue counts
-        issuesCount: 0,
-        criticalIssues: 0,
-        warnings: 0,
-        suggestions: 0,
+        auditIssues: result.audit_issues,
+        issuesCount: result.audit_issues.length,
+        criticalIssues: result.audit_issues.filter((issue) => issue.severity === "Critical").length,
+        warnings: result.audit_issues.filter(
+          (issue) => issue.severity === "High" || issue.severity === "Medium"
+        ).length,
+        suggestions: result.audit_issues.filter((issue) => issue.severity === "Low").length,
 
         lastScan: "Just now",
 

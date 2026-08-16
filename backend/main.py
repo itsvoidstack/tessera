@@ -13,6 +13,7 @@ import base64
 import asyncio
 import logging
 import time
+import re
 
 # -----------------------------------------
 # Logging & Startup state
@@ -156,6 +157,38 @@ def github_headers() -> dict[str, str]:
     return headers
 
 
+def security_audit_issues(analyzed_files: list[dict]) -> list[dict]:
+    """Find executable security risks while ignoring comments and string literals."""
+    checks = (
+        ("eval(", "High", "Dynamic code execution", "Avoid eval(); parse or validate expected input instead."),
+        ("exec(", "High", "Dynamic code execution", "Avoid exec(); use a fixed command or safe function dispatch."),
+        ("pickle.loads(", "High", "Unsafe deserialization", "Do not deserialize untrusted pickle data; use a safe format such as JSON."),
+        ("dangerouslysetinnerhtml", "Medium", "Unsafe HTML rendering", "Sanitize HTML before rendering, or render trusted structured content instead."),
+    )
+    findings = []
+
+    for file in analyzed_files:
+        file_path = file.get("path", "analyzed-source")
+        for line_number, raw_line in enumerate(file["content"].splitlines(), start=1):
+            code = raw_line.split("#", 1)[0].split("//", 1)[0]
+            code = re.sub(r"(['\"])(?:\\.|(?!\1).)*\1", "", code).lower()
+
+            for pattern, severity, title, suggested_fix in checks:
+                if pattern in code:
+                    findings.append({
+                        "id": f"security-{len(findings) + 1}",
+                        "title": title,
+                        "description": f"{title} detected in {file_path}.",
+                        "severity": severity,
+                        "file": file_path,
+                        "line": line_number,
+                        "category": "Security",
+                        "suggestedFix": suggested_fix,
+                    })
+
+    return findings
+
+
 def static_scores(tree_data: dict, analyzed_files: list[dict]) -> tuple[dict, int]:
     """Produce explainable baseline scores from repository structure and source."""
     paths = [item.get("path", "").lower() for item in tree_data.get("tree", [])]
@@ -172,10 +205,7 @@ def static_scores(tree_data: dict, analyzed_files: list[dict]) -> tuple[dict, in
     )
     top_level_directories = {Path(path).parts[0] for path in paths if len(Path(path).parts) > 1}
     todo_count = source.count("todo") + source.count("fixme")
-    risky_patterns = sum(
-        source.count(pattern)
-        for pattern in ("eval(", "exec(", "dangerouslysetinnerhtml", "pickle.loads(")
-    )
+    risky_patterns = len(security_audit_issues(analyzed_files))
     performance_patterns = source.count("for ") + source.count("while ")
 
     def bounded(score: int) -> int:
@@ -630,6 +660,8 @@ Be specific. Base your analysis only on the provided repository information and 
     elif not analyzed_files:
         ai_analysis = "No source files were available for AI analysis."
 
+    audit_issues = security_audit_issues(analyzed_files)
+
     # -----------------------------------------
     # 9. Return scan result
     # -----------------------------------------
@@ -657,6 +689,8 @@ Be specific. Base your analysis only on the provided repository information and 
         "scores": scores,
 
         "health_score": health_score,
+
+        "audit_issues": audit_issues,
 
         "scoring_method": "static repository analysis"
     }
