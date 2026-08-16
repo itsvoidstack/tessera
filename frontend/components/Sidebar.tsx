@@ -45,9 +45,10 @@ export default function Sidebar({ projectId }: SidebarProps) {
     pathname === href || pathname.startsWith(href + "/");
 
   // User display
-  const displayName  = user?.name  ?? "Guest";
-  const displayEmail = user?.email ?? "";
-  const avatarChar   = user?.avatar ?? displayName.charAt(0).toUpperCase();
+  const displayName  = user?.name || user?.githubUsername || "GitHub User";
+  const displayEmail = user?.email || "";
+  const avatarUrl    = user?.avatar && user.avatar.startsWith("http") ? user.avatar : null;
+  const initials     = (displayName.charAt(0) || "U").toUpperCase();
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-white dark:bg-[#0f172a] transition-colors">
@@ -63,7 +64,7 @@ export default function Sidebar({ projectId }: SidebarProps) {
         </button>
       </div>
 
-      {/* Top Level Dashboard Link (Always visible, prominently featured in collapsed & expanded views) */}
+      {/* Top Level Dashboard Link */}
       <div className="px-2 pt-1 pb-2">
         <Link
           href="/dashboard"
@@ -156,20 +157,28 @@ export default function Sidebar({ projectId }: SidebarProps) {
         ))}
 
         {/* User Profile */}
-        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mt-1 cursor-default ${collapsed ? "justify-center px-0" : ""}`}>
-          <div className="w-7 h-7 rounded-full bg-[#1a5c38] text-white flex items-center justify-center text-xs font-semibold flex-shrink-0">
-            {avatarChar}
-          </div>
-          {!collapsed && (
-            <>
+        {user && (
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mt-1 cursor-default ${collapsed ? "justify-center px-0" : ""}`}>
+            <div className="w-7 h-7 rounded-full bg-[#1a5c38] text-white flex items-center justify-center text-xs font-semibold flex-shrink-0 overflow-hidden">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={displayName}
+                  className="w-full h-full object-cover rounded-full"
+                  onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
+                />
+              ) : (
+                <span>{initials}</span>
+              )}
+            </div>
+            {!collapsed && (
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-medium text-gray-900 dark:text-white truncate">{displayName}</div>
-                <div className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{displayEmail}</div>
+                {displayEmail && <div className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{displayEmail}</div>}
               </div>
-              <ChevronDown size={12} className="text-gray-400 flex-shrink-0" />
-            </>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -21,9 +21,10 @@ export default function AppTopBar({ showBell = false }: AppTopBarProps) {
   const userRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
 
-  const displayName = user?.name  ?? "Guest";
-  const displayEmail = user?.email ?? "";
-  const avatarChar  = user?.avatar ?? displayName.charAt(0).toUpperCase();
+  const displayName = user?.name || user?.githubUsername || "GitHub User";
+  const displayEmail = user?.email || "";
+  const avatarUrl = user?.avatar && user.avatar.startsWith("http") ? user.avatar : null;
+  const initials = (displayName.charAt(0) || "U").toUpperCase();
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -44,7 +45,7 @@ export default function AppTopBar({ showBell = false }: AppTopBarProps) {
     <header className="h-14 border-b border-gray-100 dark:border-gray-800/80 bg-white dark:bg-[#0f172a] flex items-center justify-between px-6 flex-shrink-0 relative z-40 transition-colors duration-200">
       <Logo />
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
         {/* Bell */}
         {showBell && (
           <div className="relative" ref={bellRef}>
@@ -108,51 +109,73 @@ export default function AppTopBar({ showBell = false }: AppTopBarProps) {
         </button>
 
         {/* User dropdown */}
-        <div className="relative ml-1" ref={userRef}>
-          <button
-            onClick={() => setUserOpen((o) => !o)}
-            className="flex items-center gap-2 pl-2 pr-1.5 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-          >
-            <div className="w-7 h-7 rounded-full bg-[#1a5c38] dark:bg-green-700 text-white flex items-center justify-center text-xs font-semibold flex-shrink-0">
-              {avatarChar}
-            </div>
-            <ChevronDown
-              size={13}
-              className={`text-gray-400 transition-transform duration-200 ${userOpen ? "rotate-180" : ""}`}
-            />
-          </button>
+        {user && (
+          <div className="relative ml-1" ref={userRef}>
+            <button
+              onClick={() => setUserOpen((o) => !o)}
+              className="flex items-center gap-1.5 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer flex-shrink-0"
+              aria-label="User menu"
+            >
+              <div className="w-8 h-8 rounded-full bg-[#1a5c38] dark:bg-green-700 text-white flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0 border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={displayName}
+                    className="w-full h-full object-cover rounded-full"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = "none";
+                    }}
+                  />
+                ) : (
+                  <span>{initials}</span>
+                )}
+              </div>
+              <ChevronDown
+                size={13}
+                className={`text-gray-400 transition-transform duration-200 flex-shrink-0 ${
+                  userOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
 
-          {userOpen && (
-            <div className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg overflow-hidden z-50 animate-fade-in">
-              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
-                <div className="text-sm font-semibold text-gray-900 dark:text-white leading-snug">{displayName}</div>
-                <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{displayEmail}</div>
+            {userOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg overflow-hidden z-50 animate-fade-in">
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white leading-snug truncate">
+                    {displayName}
+                  </div>
+                  {displayEmail && (
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate">
+                      {displayEmail}
+                    </div>
+                  )}
+                </div>
+                {[
+                  { Icon: User, label: "Profile", action: () => setUserOpen(false) },
+                  { Icon: Settings, label: "Settings", action: () => setUserOpen(false) },
+                ].map(({ Icon, label, action }) => (
+                  <button
+                    key={label}
+                    onClick={action}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left cursor-pointer"
+                  >
+                    <Icon size={14} className="text-gray-400 dark:text-gray-500" />
+                    {label}
+                  </button>
+                ))}
+                <div className="border-t border-gray-100 dark:border-gray-800">
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-left cursor-pointer"
+                  >
+                    <LogOut size={14} />
+                    Sign out
+                  </button>
+                </div>
               </div>
-              {[
-                { Icon: User,     label: "Profile",  action: () => setUserOpen(false) },
-                { Icon: Settings, label: "Settings", action: () => setUserOpen(false) },
-              ].map(({ Icon, label, action }) => (
-                <button
-                  key={label}
-                  onClick={action}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left cursor-pointer"
-                >
-                  <Icon size={14} className="text-gray-400 dark:text-gray-500" />
-                  {label}
-                </button>
-              ))}
-              <div className="border-t border-gray-100 dark:border-gray-800">
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-left cursor-pointer"
-                >
-                  <LogOut size={14} />
-                  Sign out
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );

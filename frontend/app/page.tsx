@@ -76,6 +76,11 @@ export default function LandingPage() {
   }, [isAuthed, isLoadingAuth, router]);
 
   async function handleAnalyze(urlInput?: string) {
+    if (!isAuthed) {
+      router.push("/login");
+      return;
+    }
+
     const val = (urlInput ?? repoUrl).trim();
     if (!val) {
       setValidationError("Please enter a GitHub repository URL or owner/repo.");
@@ -305,7 +310,13 @@ export default function LandingPage() {
               </div>
 
               <button
-                onClick={() => router.push("/login")}
+                onClick={() => {
+                  if (isAuthed) {
+                    router.push("/dashboard");
+                  } else {
+                    router.push("/login");
+                  }
+                }}
                 className="w-full bg-[#1a5c38] hover:bg-[#145230] dark:bg-green-600 dark:hover:bg-green-700 text-white rounded-lg py-2.5 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Get Started Free
