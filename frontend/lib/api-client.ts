@@ -1,5 +1,7 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const RAW_API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "https://tessera-backend-n7ey.onrender.com";
+
+export const API_BASE_URL = RAW_API_BASE_URL.replace(/\/+$/, "");
 
 export interface GitHubRepoMeta {
   owner: string;
@@ -41,24 +43,36 @@ export interface ScanResponse {
 export async function validateGitHubRepo(
   repoUrl: string
 ): Promise<ValidateRepoResponse> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/validate-repo?repo_url=${encodeURIComponent(
-      repoUrl
-    )}`,
-    {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/validate-repo?repo_url=${encodeURIComponent(
+        repoUrl
+      )}`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw new Error(data?.detail || "Failed to validate repository.");
     }
-  );
 
-  if (!response.ok) {
-    const data = await response.json().catch(() => null);
-    throw new Error(data?.detail || "Failed to validate repository.");
+    return await response.json();
+  } catch (err) {
+    if (err instanceof Error) {
+      if (err.name === "TypeError" || err.message.toLowerCase().includes("fetch")) {
+        throw new Error(
+          `Unable to connect to the backend service (${API_BASE_URL}). The server may be waking up or unreachable. Please try again in a few seconds.`
+        );
+      }
+      throw err;
+    }
+    throw new Error("An unexpected error occurred while validating the repository.");
   }
-
-  return response.json();
 }
 
 export async function scanRepository(
@@ -66,28 +80,38 @@ export async function scanRepository(
 ): Promise<ScanResponse> {
   console.log("Sending repository to backend:", repoUrl);
 
-  const response = await fetch(
-    `${API_BASE_URL}/api/scan`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        repo_url: repoUrl,
-      }),
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/scan`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          repo_url: repoUrl,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw new Error(data?.detail || `Backend scan failed with status ${response.status}`);
     }
-  );
 
-  if (!response.ok) {
-    const data = await response.json().catch(() => null);
-    throw new Error(data?.detail || `Backend scan failed: ${response.status}`);
+    const result = await response.json();
+    console.log("Backend response:", result);
+    return result;
+  } catch (err) {
+    if (err instanceof Error) {
+      if (err.name === "TypeError" || err.message.toLowerCase().includes("fetch")) {
+        throw new Error(
+          `Unable to connect to Tessera backend API (${API_BASE_URL}). The service may be waking up from free-tier sleep or unreachable.`
+        );
+      }
+      throw err;
+    }
+    throw new Error("An unexpected error occurred during repository analysis.");
   }
-
-  const result = await response.json();
-
-  console.log("Backend response:", result);
-
-  return result;
 }
