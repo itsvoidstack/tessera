@@ -824,10 +824,27 @@ Cover:
 - Maintainability & structural status
 - Meaningful observations for codebase tracking
 
-Keep it clear, professional, and actionable."""
+Keep it clear, professional, and actionable.""",
+
+        "overall": f"""You are a principal engineer creating a comprehensive engineering reference note for {owner}/{repo}.
+Based ONLY on the actual source code and files below:
+{files_text}
+
+Synthesize a single, highly useful, structured engineering knowledge document.
+Include these exact sections:
+1. What This Project Is & Core Purpose
+2. Architecture & System Boundaries
+3. How It Works & Key Data Flows
+4. Important Files & Components
+5. Security & Risk Assessment
+6. Technical Debt & Code Quality
+7. Developer Onboarding & How to Get Started
+8. Recent Evolution & Changes (if relevant evidence exists)
+
+Format in clean markdown with clear headers, bullet points, and code backticks for identifiers. Ground all claims strictly in the provided files. Do not fabricate facts."""
     }
 
-    prompt = prompts.get(insight, prompts["architecture"])
+    prompt = prompts.get(insight, prompts["overall"])
 
     try:
         gemini_res = gemini_client.models.generate_content(
@@ -843,6 +860,7 @@ Keep it clear, professional, and actionable."""
         )
 
     titles = {
+        "overall": "Overall Repository Insight",
         "architecture": "Architecture Insight",
         "quality": "Code Quality & Technical Debt",
         "security": "Security & Vulnerability Insight",
@@ -852,6 +870,7 @@ Keep it clear, professional, and actionable."""
     }
 
     tags_map = {
+        "overall": ["overall", "comprehensive", "ai-insight"],
         "architecture": ["architecture", "design", "ai-insight"],
         "quality": ["code-quality", "tech-debt", "ai-insight"],
         "security": ["security", "audit", "ai-insight"],
@@ -859,6 +878,7 @@ Keep it clear, professional, and actionable."""
         "onboarding": ["onboarding", "guide", "ai-insight"],
         "changes": ["rescan", "changes", "ai-insight"]
     }
+
 
     return {
         "status": "success",

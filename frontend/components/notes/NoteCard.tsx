@@ -28,6 +28,7 @@ export default function NoteCard({ note, onClick }: NoteCardProps) {
   const displayDate = formatDate(note.updatedAt || note.date);
 
   const categoryLabels: Record<string, string> = {
+    overall: "Overall Reference",
     architecture: "Architecture",
     quality: "Code Quality",
     security: "Security",
@@ -35,6 +36,7 @@ export default function NoteCard({ note, onClick }: NoteCardProps) {
     onboarding: "Onboarding",
     changes: "Changes Summary",
   };
+
 
   const categoryName = note.insightType ? categoryLabels[note.insightType.toLowerCase()] || note.insightType : null;
 

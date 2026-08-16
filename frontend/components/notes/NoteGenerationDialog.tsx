@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Sparkles, Layers, ShieldAlert, GitBranch, UserCheck, RefreshCw, X, AlertCircle } from "lucide-react";
+import { Sparkles, Layers, ShieldAlert, GitBranch, UserCheck, RefreshCw, X, AlertCircle, BookOpenCheck } from "lucide-react";
 
 interface NoteGenerationDialogProps {
   onGenerate: (insightType: string) => Promise<void>;
@@ -10,6 +10,13 @@ interface NoteGenerationDialogProps {
 }
 
 const INSIGHT_OPTIONS = [
+  {
+    id: "overall",
+    title: "✨ Overall Repository Insight",
+    desc: "Synthesizes architecture, code quality, security, key files, onboarding, and recent changes into one comprehensive engineering reference.",
+    icon: Sparkles,
+    badge: "Comprehensive",
+  },
   {
     id: "architecture",
     title: "Architecture Insight",
@@ -49,7 +56,7 @@ const INSIGHT_OPTIONS = [
     id: "changes",
     title: "Changes Since Last Scan",
     desc: "Summarizes active modules, structural updates, and maintainability notes for codebase tracking.",
-    icon: RefreshCw,
+    icon: BookOpenCheck,
     badge: "Evolution",
   },
 ];
@@ -59,7 +66,7 @@ export default function NoteGenerationDialog({
   onClose,
   repoName,
 }: NoteGenerationDialogProps) {
-  const [selectedType, setSelectedType] = useState<string>("architecture");
+  const [selectedType, setSelectedType] = useState<string>("overall");
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -77,10 +84,10 @@ export default function NoteGenerationDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 px-4 py-6 overflow-y-auto">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-full max-w-xl p-6 relative animate-fade-in my-auto">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-5 pb-4 border-b border-gray-100 dark:border-gray-800">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 sm:p-6 overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col p-6 relative animate-fade-in my-auto">
+        {/* Header - Fixed */}
+        <div className="flex items-start justify-between mb-4 pb-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <div className="w-7 h-7 rounded-lg bg-[#1a5c38]/10 dark:bg-green-500/10 text-[#1a5c38] dark:text-green-400 flex items-center justify-center">
@@ -104,9 +111,9 @@ export default function NoteGenerationDialog({
           </button>
         </div>
 
-        {/* Error Alert */}
+        {/* Error Alert - Fixed if present */}
         {errorMsg && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 rounded-xl flex items-start gap-2 text-xs text-red-700 dark:text-red-300">
+          <div className="mb-3 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 rounded-xl flex items-start gap-2 text-xs text-red-700 dark:text-red-300 flex-shrink-0">
             <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <span>{errorMsg}</span>
@@ -114,8 +121,8 @@ export default function NoteGenerationDialog({
           </div>
         )}
 
-        {/* Insight Options List */}
-        <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1 mb-6">
+        {/* Insight Options List - Internal Scroll Area */}
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1.5 my-1">
           {INSIGHT_OPTIONS.map((opt) => {
             const Icon = opt.icon;
             const isSelected = selectedType === opt.id;
@@ -144,7 +151,7 @@ export default function NoteGenerationDialog({
                     <h3 className="text-xs font-bold text-gray-900 dark:text-white truncate">
                       {opt.title}
                     </h3>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-medium">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-medium flex-shrink-0">
                       {opt.badge}
                     </span>
                   </div>
@@ -157,8 +164,8 @@ export default function NoteGenerationDialog({
           })}
         </div>
 
-        {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+        {/* Footer Actions - Fixed */}
+        <div className="flex items-center justify-end gap-3 pt-4 mt-3 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
           <button
             onClick={onClose}
             disabled={isGenerating}
