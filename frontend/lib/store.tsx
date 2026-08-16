@@ -44,9 +44,14 @@ export interface Note {
   title: string;
   preview: string;
   date: string;
+  updatedAt?: string;
   tags: string[];
   content: string;
+  noteType?: "personal" | "ai_generated";
+  insightType?: string;
+  lastScanId?: string;
 }
+
 
 export interface ScanSnapshot {
   scanId: string;

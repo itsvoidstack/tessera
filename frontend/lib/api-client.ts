@@ -128,3 +128,55 @@ export async function scanRepository(
     throw new Error("An unexpected error occurred during repository analysis.");
   }
 }
+
+export interface GenerateNoteInsightResponse {
+  status: string;
+  title: string;
+  insight_type: string;
+  content: string;
+  tags: string[];
+  scan_id: string;
+}
+
+export async function generateNoteInsight(
+  repoUrl: string,
+  insightType: string,
+  scanId?: string,
+  existingAnalysis?: string,
+  files?: Array<{ path: string; size: number; content: string }>
+): Promise<GenerateNoteInsightResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/notes/generate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        repo_url: repoUrl,
+        insight_type: insightType,
+        scan_id: scanId,
+        existing_analysis: existingAnalysis,
+        files: files,
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw new Error(data?.detail || `Insight generation failed with status ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (err) {
+    if (err instanceof Error) {
+      if (err.name === "TypeError" || err.message.toLowerCase().includes("fetch")) {
+        throw new Error(
+          `Unable to connect to Tessera backend API (${API_BASE_URL}). Please verify backend is running and GEMINI_API_KEY is configured.`
+        );
+      }
+      throw err;
+    }
+    throw new Error("An unexpected error occurred during note insight generation.");
+  }
+}
+

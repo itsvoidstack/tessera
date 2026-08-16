@@ -660,3 +660,212 @@ Be specific. Base your analysis only on the provided repository information and 
 
         "scoring_method": "static repository analysis"
     }
+
+
+# -----------------------------------------
+# Generate Note Insight Endpoint
+# -----------------------------------------
+
+class NoteGenerateRequest(BaseModel):
+    repo_url: str
+    insight_type: str
+    scan_id: str | None = None
+    existing_analysis: str | None = None
+    files: list[dict] | None = None
+
+
+@app.post("/api/notes/generate")
+def generate_note_insight(request: NoteGenerateRequest):
+    if not GEMINI_API_KEY or not gemini_client:
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini API key is not configured on the backend server."
+        )
+
+    owner, repo = parse_github_repository(request.repo_url)
+    analyzed_files = request.files or []
+
+    if not analyzed_files:
+        headers = github_headers()
+        repo_api_url = f"https://api.github.com/repos/{owner}/{repo}"
+        try:
+            res = requests.get(repo_api_url, headers=headers, timeout=10)
+            if res.status_code != 200:
+                raise HTTPException(status_code=res.status_code, detail="GitHub repository unreachable.")
+            repo_data = res.json()
+            branch = repo_data.get("default_branch", "main")
+            tree_res = requests.get(
+                f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1",
+                headers=headers,
+                timeout=15
+            )
+            if tree_res.status_code == 200:
+                tree_data = tree_res.json()
+                allowed_extensions = {
+                    ".py", ".js", ".jsx", ".ts", ".tsx", ".html", ".css",
+                    ".java", ".c", ".cpp", ".go", ".rs", ".sql"
+                }
+                ignored_directories = {
+                    "node_modules", "venv", ".venv", ".git", "__pycache__", "dist", "build"
+                }
+                source_files = []
+                for item in tree_data.get("tree", []):
+                    if item.get("type") != "blob":
+                        continue
+                    fp = item.get("path", "")
+                    if any(d in Path(fp).parts for d in ignored_directories):
+                        continue
+                    if Path(fp).suffix.lower() in allowed_extensions:
+                        source_files.append({"path": fp, "size": item.get("size", 0)})
+
+                source_files = source_files[:15]
+                for file in source_files:
+                    fp = file["path"]
+                    c_res = requests.get(
+                        f"https://api.github.com/repos/{owner}/{repo}/contents/{fp}?ref={branch}",
+                        headers=headers,
+                        timeout=10
+                    )
+                    if c_res.status_code == 200:
+                        c_data = c_res.json()
+                        enc = c_data.get("content")
+                        if enc:
+                            decoded = base64.b64decode(enc).decode("utf-8", errors="ignore")[:30000]
+                            analyzed_files.append({"path": fp, "size": file["size"], "content": decoded})
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Error retrieving repository files for note generation: {e}")
+
+    files_text = ""
+    for f in analyzed_files:
+        files_text += f"\n\n--- FILE: {f['path']} ---\n{f.get('content', '')}"
+
+    if not files_text and request.existing_analysis:
+        files_text = f"\n\n--- PREVIOUS ANALYSIS SUMMARY ---\n{request.existing_analysis}"
+
+    insight = request.insight_type.lower().strip()
+
+    prompts = {
+        "architecture": f"""You are an expert software architect analyzing the repository {owner}/{repo}.
+Based ONLY on the actual source code and files below:
+{files_text}
+
+Write a detailed, structured Architecture Insight note for developers.
+Cover:
+- Core System Modules & Entry Points
+- UI / Service / Storage Layers & Boundaries
+- State & Data Flow Patterns
+- Critical Dependencies & Integration Points
+- Key Architectural Patterns & Concerns
+
+Format in clean markdown with headers, bullet points, and code identifiers.""",
+
+        "quality": f"""You are a principal engineer analyzing code quality for {owner}/{repo}.
+Based ONLY on the actual source code and files below:
+{files_text}
+
+Write a detailed Code Quality & Technical Debt note.
+Cover:
+- Fragile or Complex Code Areas (with exact file paths where evidence exists)
+- Technical Debt & Maintenance Hotspots
+- Code Duplication & Consistency Concerns
+- Suggested Refactoring & Code Quality Improvements
+
+Be specific and ground all claims in the provided source files. Do not fabricate issues.""",
+
+        "security": f"""You are a security expert auditing {owner}/{repo}.
+Based ONLY on the actual source code below:
+{files_text}
+
+Write a Security & Risk Insight note.
+Cover:
+- Identified Security & Validation Risks (with file locations where evidence exists)
+- Severity Rating (Critical/High/Medium/Low) for each finding
+- Why it matters for safety and data protection
+- Actionable Remediation Guidance
+
+Do not fabricate vulnerabilities. Only list risks evidenced by the code.""",
+
+        "files": f"""You are a senior developer analyzing file structure in {owner}/{repo}.
+Based ONLY on the actual source code below:
+{files_text}
+
+Write an Important Files Reference note.
+For each key file identified:
+- File path & primary responsibility
+- Why it is critical to the application
+- What other files or modules depend on it
+
+List 5 to 10 most important files with brief, precise explanations.""",
+
+        "onboarding": f"""You are a tech lead onboarding a new developer to {owner}/{repo}.
+Based ONLY on the actual source code below:
+{files_text}
+
+Write a Developer Onboarding Guide note.
+Answer:
+1. What is this project and what does it do?
+2. Where does execution start (frontend & backend entry points)?
+3. How is authentication, database access, or API interaction structured?
+4. Which key files should a new developer read first?
+5. What conventions or rules should they know before submitting code?
+
+Make it practical, welcoming, and clear.""",
+
+        "changes": f"""You are an engineering observer analyzing repository evolution in {owner}/{repo}.
+Based on the available repository files and analysis below:
+{files_text}
+
+Write a Repository Change & Evolution Note.
+Cover:
+- Summary of repository structure and key components
+- Core architectural modules currently active
+- Maintainability & structural status
+- Meaningful observations for codebase tracking
+
+Keep it clear, professional, and actionable."""
+    }
+
+    prompt = prompts.get(insight, prompts["architecture"])
+
+    try:
+        gemini_res = gemini_client.models.generate_content(
+            model="gemini-3.6-flash",
+            contents=prompt
+        )
+        content = gemini_res.text
+    except Exception as e:
+        logger.error(f"Gemini note generation failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate insight via Gemini: {str(e)}"
+        )
+
+    titles = {
+        "architecture": "Architecture Insight",
+        "quality": "Code Quality & Technical Debt",
+        "security": "Security & Vulnerability Insight",
+        "files": "Important Files & Core Components",
+        "onboarding": "Developer Onboarding Guide",
+        "changes": "Repository Evolution & Changes"
+    }
+
+    tags_map = {
+        "architecture": ["architecture", "design", "ai-insight"],
+        "quality": ["code-quality", "tech-debt", "ai-insight"],
+        "security": ["security", "audit", "ai-insight"],
+        "files": ["important-files", "structure", "ai-insight"],
+        "onboarding": ["onboarding", "guide", "ai-insight"],
+        "changes": ["rescan", "changes", "ai-insight"]
+    }
+
+    return {
+        "status": "success",
+        "title": titles.get(insight, "Repository Insight"),
+        "insight_type": insight,
+        "content": content,
+        "tags": tags_map.get(insight, ["ai-insight"]),
+        "scan_id": request.scan_id or "latest"
+    }
+
