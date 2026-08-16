@@ -351,7 +351,8 @@ export default function NotesPage({ params }: { params: Promise<{ id: string }> 
   const activeNote = notes.find((n) => n.id === activeNoteId);
 
   return (
-    <div className="h-full bg-white dark:bg-[#0f172a] transition-colors">
+    <div className="h-full flex flex-col flex-1 min-h-0 bg-white dark:bg-[#0f172a] transition-colors overflow-hidden">
+
       {viewMode === "editor" && activeNote ? (
         <NoteEditor
           note={activeNote}

@@ -79,7 +79,8 @@ export default function NotesDashboard({
   }, [notes, searchQuery, selectedTag, sortBy]);
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-[#0f172a] transition-colors overflow-hidden">
+    <div className="h-full flex flex-col flex-1 min-h-0 bg-white dark:bg-[#0f172a] transition-colors overflow-hidden">
+
       {/* Workspace Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-8 py-6 border-b border-gray-100 dark:border-gray-800 flex-shrink-0 bg-white/60 dark:bg-[#0f172a]/60 backdrop-blur-xs">
         <div>

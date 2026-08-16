@@ -19,8 +19,9 @@ interface PageTransitionProps {
 
 export default function PageTransition({ children, className = "" }: PageTransitionProps) {
   return (
-    <div className={`page-enter ${className}`}>
+    <div className={`page-enter h-full flex flex-col flex-1 min-h-0 ${className}`}>
       {children}
     </div>
   );
 }
+

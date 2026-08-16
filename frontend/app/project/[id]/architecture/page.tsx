@@ -442,12 +442,13 @@ export default function ArchitecturePage({ params }: { params: Promise<{ id: str
 
         {/* Detailed Module Info Panel */}
         {activeComp && components.length > 0 && (
-          <div className="w-[280px] border-l border-gray-100 dark:border-gray-800 bg-white dark:bg-[#0f172a] overflow-y-auto p-5 flex-shrink-0 flex flex-col justify-between">
-            <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-4">
+          <div className="w-[280px] border-l border-gray-100 dark:border-gray-800 bg-white dark:bg-[#0f172a] flex flex-col flex-shrink-0 h-full overflow-hidden">
+            {/* Scrollable details content */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                 Module Info
               </div>
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2">
                 <div
                   className="w-7 h-7 rounded-md flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
                   style={{ backgroundColor: activeComp.color }}
@@ -458,7 +459,7 @@ export default function ArchitecturePage({ params }: { params: Promise<{ id: str
                   {activeComp.label}
                 </span>
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 leading-relaxed truncate">
+              <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed truncate">
                 {activeComp.sublabel}
               </p>
 
@@ -518,17 +519,18 @@ export default function ArchitecturePage({ params }: { params: Promise<{ id: str
               </div>
             </div>
 
-            {/* Action button to open in Code Explorer */}
-            <div className="pt-4 border-t border-gray-100 dark:border-gray-800 mt-4">
+            {/* Action button fixed at bottom of Module Info panel */}
+            <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-[#0f172a] flex-shrink-0">
               <button
                 onClick={openCodeExplorerForSelected}
-                className="w-full flex items-center justify-center gap-1.5 bg-[#1a5c38] hover:bg-[#145230] dark:bg-green-600 dark:hover:bg-green-700 text-white rounded-lg py-2 text-xs font-semibold transition-colors cursor-pointer"
+                className="w-full flex items-center justify-center gap-1.5 bg-[#1a5c38] hover:bg-[#145230] dark:bg-green-600 dark:hover:bg-green-700 text-white rounded-lg py-2.5 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               >
-                <Code2 size={13} /> Open in Code Explorer
+                <Code2 size={14} /> Open in Code Explorer
               </button>
             </div>
           </div>
         )}
+
       </div>
     </div>
   );
