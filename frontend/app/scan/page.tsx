@@ -197,6 +197,10 @@ function ScanContent() {
       updateProject(project.id, {
         status: "completed",
 
+        healthScore: result.health_score,
+
+        scores: result.scores,
+
         // Real AI response from FastAPI
         projectSummary:
           result.ai_analysis ||
@@ -236,8 +240,7 @@ function ScanContent() {
 
             version: "v1.0.0",
 
-            // Backend currently doesn't return a health score
-            healthScore: null,
+            healthScore: result.health_score,
 
             issuesFound: 0,
 

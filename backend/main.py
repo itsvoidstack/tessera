@@ -127,6 +127,8 @@ class ScanRequest(BaseModel):
 def parse_github_repository(repo_url: str) -> tuple[str, str]:
     """Accept either an owner/repository value or a full GitHub URL."""
     value = repo_url.strip()
+    if value.startswith(("github.com/", "www.github.com/")):
+        value = f"https://{value}"
     if "://" not in value:
         value = f"https://github.com/{value.lstrip('/')}"
 
@@ -152,6 +154,56 @@ def github_headers() -> dict[str, str]:
     if GITHUB_TOKEN:
         headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
     return headers
+
+
+def static_scores(tree_data: dict, analyzed_files: list[dict]) -> tuple[dict, int]:
+    """Produce explainable baseline scores from repository structure and source."""
+    paths = [item.get("path", "").lower() for item in tree_data.get("tree", [])]
+    source = "\n".join(file["content"].lower() for file in analyzed_files)
+    source_count = len(analyzed_files)
+
+    has_tests = any(
+        part in path for path in paths for part in ("/test/", "/tests/", ".test.", ".spec.")
+    )
+    has_docs = any(Path(path).name in {"readme.md", "readme.rst", "readme.txt"} for path in paths)
+    has_manifest = any(
+        Path(path).name in {"package.json", "requirements.txt", "pyproject.toml", "pom.xml", "go.mod", "cargo.toml"}
+        for path in paths
+    )
+    top_level_directories = {Path(path).parts[0] for path in paths if len(Path(path).parts) > 1}
+    todo_count = source.count("todo") + source.count("fixme")
+    risky_patterns = sum(
+        source.count(pattern)
+        for pattern in ("eval(", "exec(", "dangerouslysetinnerhtml", "pickle.loads(")
+    )
+    performance_patterns = source.count("for ") + source.count("while ")
+
+    def bounded(score: int) -> int:
+        return max(25, min(95, score))
+
+    code_quality = bounded(76 + min(source_count, 10) - min(todo_count * 2, 20))
+    security = bounded(90 - min(risky_patterns * 8, 40))
+    testing = 85 if has_tests else 45
+    documentation = 85 if has_docs else 55
+    dependencies = 86 if has_manifest else 60
+    architecture = bounded(65 + min(len(top_level_directories) * 3, 15) + (5 if has_manifest else 0))
+    maintainability = bounded((code_quality + documentation + testing) // 3)
+    reliability = bounded((code_quality + security + testing) // 3)
+    performance = bounded(82 - min(max(performance_patterns - 30, 0), 15))
+
+    scores = {
+        "architecture": architecture,
+        "codeQuality": code_quality,
+        "security": security,
+        "testing": testing,
+        "documentation": documentation,
+        "dependencies": dependencies,
+        "maintainability": maintainability,
+        "reliability": reliability,
+        "performance": performance,
+    }
+    health_score = round(sum(scores.values()) / len(scores))
+    return scores, health_score
 
 
 # -----------------------------------------
@@ -190,7 +242,10 @@ def validate_repository(repo_url: str):
         raise HTTPException(status_code=503, detail="Unable to connect to GitHub.")
 
     if response.status_code == 404:
-        return {"valid": False, "error": "GitHub repository not found."}
+        return {
+            "valid": False,
+            "error": "GitHub repository not found or it is private. Check the URL or make the repository public.",
+        }
     if response.status_code == 403:
         raise HTTPException(status_code=429, detail="GitHub API rate limit exceeded.")
     if response.status_code != 200:
@@ -394,7 +449,9 @@ def scan_repository(request: ScanRequest):
 
         extension = Path(file_path).suffix.lower()
 
-        if extension not in allowed_extensions:
+        if extension not in allowed_extensions and Path(file_path).name.lower() not in {
+            name.lower() for name in priority_files
+        }:
             continue
 
         file_name = Path(file_path).name
@@ -504,6 +561,8 @@ def scan_repository(request: ScanRequest):
             "content": decoded_content
         })
 
+    scores, health_score = static_scores(tree_data, analyzed_files)
+
     # -----------------------------------------
     # 8. Gemini analysis
     # -----------------------------------------
@@ -593,5 +652,11 @@ Be specific. Base your analysis only on the provided repository information and 
 
         "files": analyzed_files,
 
-        "ai_analysis": ai_analysis
+        "ai_analysis": ai_analysis,
+
+        "scores": scores,
+
+        "health_score": health_score,
+
+        "scoring_method": "static repository analysis"
     }

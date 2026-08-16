@@ -38,6 +38,19 @@ export interface ScanResponse {
   file_count: number;
   files: Array<{ path: string; size: number; content: string }>;
   ai_analysis: string | null;
+  scores: {
+    architecture: number;
+    codeQuality: number;
+    security: number;
+    testing: number;
+    documentation: number;
+    dependencies: number;
+    maintainability: number;
+    reliability: number;
+    performance: number;
+  };
+  health_score: number;
+  scoring_method: string;
 }
 
 export async function validateGitHubRepo(
