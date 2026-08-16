@@ -1,16 +1,13 @@
 "use client";
 
 import Logo from "@/components/Logo";
-import GitHubIcon from "@/components/GitHubIcon";
 import PageTransition from "@/components/PageTransition";
-import { Lock, ArrowRight, ShieldCheck } from "lucide-react";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 import { Suspense } from "react";
-import { loginWithGitHub } from "@/lib/api-client";
+import { useRouter } from "next/navigation";
 
 function LoginContent() {
-  function handleGitHubClick() {
-    loginWithGitHub();
-  }
+  const router = useRouter();
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#0b0f17] flex flex-col items-center justify-center px-4 py-12 transition-colors duration-200">
@@ -26,16 +23,15 @@ function LoginContent() {
             Sign in to Tessera
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
-            Connect your account to analyze repositories, map codebase architecture, and audit health.
+            No account is required while Tessera is running locally.
           </p>
 
           {/* GitHub button */}
           <button
-            onClick={handleGitHubClick}
+            onClick={() => router.push("/dashboard")}
             className="w-full flex items-center justify-center gap-3 bg-gray-900 dark:bg-gray-800 hover:bg-black dark:hover:bg-gray-700 text-white rounded-lg py-3 px-5 text-sm font-medium transition-colors shadow-sm cursor-pointer group"
           >
-            <GitHubIcon size={18} className="text-white" />
-            <span>Continue with GitHub</span>
+            <span>Continue to Dashboard</span>
             <ArrowRight size={15} className="text-gray-400 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
           </button>
 
@@ -44,14 +40,13 @@ function LoginContent() {
             <div className="flex items-start gap-2.5">
               <ShieldCheck size={16} className="text-[#1a5c38] dark:text-green-400 mt-0.5 flex-shrink-0" />
               <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-                Tessera authenticates directly via GitHub OAuth. You will be redirected to GitHub to authorize access securely.
+                Public repositories are analyzed through the local FastAPI backend. GitHub OAuth is disabled for now.
               </p>
             </div>
           </div>
 
           {/* Trust note */}
           <div className="mt-6 flex items-center justify-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
-            <Lock size={12} />
             Read-only access by default · No passwords stored
           </div>
         </div>

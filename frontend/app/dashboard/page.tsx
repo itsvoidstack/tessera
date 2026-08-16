@@ -22,7 +22,7 @@ type ViewMode = "grid" | "list";
 export default function DashboardPage() {
   const router = useRouter();
   const { toasts, toast, dismiss } = useToast();
-  const { projects, deleteProject, createProjectFromMeta } = useAppStore();
+  const { projects, deleteProject } = useAppStore();
 
   const [search, setSearch]               = useState("");
   const [sort, setSort]                   = useState<SortKey>("lastScan");
@@ -63,12 +63,10 @@ export default function DashboardPage() {
         return;
       }
 
-      const p = createProjectFromMeta(res.meta);
       setIsValidating(false);
       setShowAddModal(false);
       setNewRepoInput("");
-      toast(`Added repository ${p.owner}/${p.repo}`, "success");
-      router.push(`/project/${p.id}/overview`);
+      router.push(`/scan?repo=${encodeURIComponent(res.meta.htmlUrl)}`);
     } catch {
       setModalError("Failed to validate repository.");
       setIsValidating(false);

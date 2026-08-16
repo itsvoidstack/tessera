@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from urllib.parse import urlparse
 from pathlib import Path
@@ -42,10 +43,56 @@ if GEMINI_API_KEY:
 # -----------------------------------------
 
 app = FastAPI(title="Tessera API")
+frontend_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+frontend_origins.extend(
+    origin.strip()
+    for origin in os.getenv("FRONTEND_ORIGINS", "").split(",")
+    if origin.strip()
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=frontend_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class ScanRequest(BaseModel):
     repo_url: str
+
+
+def parse_github_repository(repo_url: str) -> tuple[str, str]:
+    """Accept either an owner/repository value or a full GitHub URL."""
+    value = repo_url.strip()
+    if "://" not in value:
+        value = f"https://github.com/{value.lstrip('/')}"
+
+    parsed_url = urlparse(value)
+    if parsed_url.netloc.lower() not in {"github.com", "www.github.com"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide a valid GitHub repository URL or owner/repository.",
+        )
+
+    path_parts = [part for part in parsed_url.path.strip("/").split("/") if part]
+    if len(path_parts) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide a valid GitHub repository URL or owner/repository.",
+        )
+
+    return path_parts[0], path_parts[1].removesuffix(".git")
+
+
+def github_headers() -> dict[str, str]:
+    headers = {"Accept": "application/vnd.github+json"}
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+    return headers
 
 
 # -----------------------------------------
@@ -66,6 +113,49 @@ def health():
     }
 
 
+@app.get("/api/validate-repo")
+def validate_repository(repo_url: str):
+    owner, repo = parse_github_repository(repo_url)
+
+    try:
+        response = requests.get(
+            f"https://api.github.com/repos/{owner}/{repo}",
+            headers=github_headers(),
+            timeout=10,
+        )
+    except requests.RequestException:
+        raise HTTPException(status_code=503, detail="Unable to connect to GitHub.")
+
+    if response.status_code == 404:
+        return {"valid": False, "error": "GitHub repository not found."}
+    if response.status_code == 403:
+        raise HTTPException(status_code=429, detail="GitHub API rate limit exceeded.")
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=502,
+            detail=f"GitHub API returned status {response.status_code}.",
+        )
+
+    data = response.json()
+    return {
+        "valid": True,
+        "meta": {
+            "owner": data["owner"]["login"],
+            "repo": data["name"],
+            "fullName": data["full_name"],
+            "description": data.get("description") or "",
+            "language": data.get("language") or "Unknown",
+            "stars": data.get("stargazers_count", 0),
+            "forks": data.get("forks_count", 0),
+            "openIssues": data.get("open_issues_count", 0),
+            "defaultBranch": data.get("default_branch", "main"),
+            "avatarUrl": data["owner"].get("avatar_url", ""),
+            "htmlUrl": data["html_url"],
+            "updatedAt": data.get("updated_at", ""),
+        },
+    }
+
+
 # -----------------------------------------
 # Scan repository
 # -----------------------------------------
@@ -77,39 +167,13 @@ def scan_repository(request: ScanRequest):
     # 1. Validate GitHub URL
     # -----------------------------------------
 
-    parsed_url = urlparse(request.repo_url)
-
-    if parsed_url.netloc.lower() != "github.com":
-        raise HTTPException(
-            status_code=400,
-            detail="Please provide a valid GitHub repository URL."
-        )
-
-    path_parts = [
-        part
-        for part in parsed_url.path.strip("/").split("/")
-        if part
-    ]
-
-    if len(path_parts) < 2:
-        raise HTTPException(
-            status_code=400,
-            detail="Please provide a valid GitHub repository URL."
-        )
-
-    owner = path_parts[0]
-    repo = path_parts[1].replace(".git", "")
+    owner, repo = parse_github_repository(request.repo_url)
 
     # -----------------------------------------
     # 2. GitHub API headers
     # -----------------------------------------
 
-    headers = {
-        "Accept": "application/vnd.github+json"
-    }
-
-    if GITHUB_TOKEN:
-        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+    headers = github_headers()
 
     # -----------------------------------------
     # 3. Get repository information

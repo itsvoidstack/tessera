@@ -10,7 +10,6 @@ import {
 import GitHubIcon from "@/components/GitHubIcon";
 import HeroDiagram from "@/components/HeroDiagram";
 import { validateGitHubRepo } from "@/lib/api-client";
-import { useAppStore } from "@/lib/store";
 
 const SAMPLE_REPOS = ["facebook/react", "vercel/next.js", "supabase/supabase"];
 
@@ -66,7 +65,6 @@ export default function LandingPage() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const router = useRouter();
-  const { createProjectFromMeta } = useAppStore();
 
   async function handleAnalyze(urlInput?: string) {
     const val = (urlInput ?? repoUrl).trim();
@@ -89,9 +87,8 @@ export default function LandingPage() {
         return;
       }
 
-      const project = createProjectFromMeta(result.meta);
       setIsValidating(false);
-      router.push(`/project/${project.id}/overview`);
+      router.push(`/scan?repo=${encodeURIComponent(result.meta.htmlUrl)}`);
     } catch {
       setValidationError("Failed to validate repository. Please check your internet connection.");
       setIsValidating(false);
@@ -318,7 +315,7 @@ export default function LandingPage() {
 
                 <div className="space-y-3 text-xs text-gray-600 dark:text-gray-300 mb-8">
                   <div className="flex items-center gap-2"><Check size={14} className="text-[#1a5c38] dark:text-green-400" /> Everything in Free</div>
-                  <div className="flex items-center gap-2"><Check size={14} className="text-[#1a5c38] dark:text-green-400" /> Private GitHub OAuth Support</div>
+                  <div className="flex items-center gap-2"><Check size={14} className="text-[#1a5c38] dark:text-green-400" /> Public repository analysis</div>
                   <div className="flex items-center gap-2"><Check size={14} className="text-[#1a5c38] dark:text-green-400" /> Advanced Multi-Agent LLM Insights</div>
                   <div className="flex items-center gap-2"><Check size={14} className="text-[#1a5c38] dark:text-green-400" /> Priority Processing Pipeline</div>
                 </div>

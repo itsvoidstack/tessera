@@ -184,7 +184,7 @@ const FAQS: FaqItem[] = [
   },
   {
     q: "Can I analyze private repositories?",
-    a: "Private repository support requires GitHub OAuth, which is handled by the backend. The frontend itself never holds your GitHub token — authentication is delegated entirely to GitHub's authorization flow.",
+    a: "This local version supports public repositories. Private repository support and GitHub OAuth are currently disabled.",
   },
   {
     q: "My repository wasn't found — why?",
