@@ -2,12 +2,12 @@
 
 /**
  * AppStore — single source of truth for Tessera frontend state.
- * Manages project lists and local user state without fake AI scores.
- * Persisted in localStorage so projects survive page refreshes.
+ * Manages project lists, local user state, and Supabase auth synchronization.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { GitHubRepoMeta } from "./api-client";
+import { supabase } from "./supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,7 +80,7 @@ export interface Project {
   stars: number;
   forks: number;
   openIssuesCount: number;
-  healthScore: number | null; // null = pending analysis from real backend
+  healthScore: number | null;
   lastScan: string;
   issuesCount: number;
   linesOfCode?: number;
@@ -88,7 +88,6 @@ export interface Project {
   directories?: number;
   color: string;
   status: "pending" | "analyzing" | "completed" | "failed";
-  // Overview
   scanId: string;
   scanDate: string;
   scores: ProjectScores;
@@ -98,17 +97,14 @@ export interface Project {
   projectSummary: string;
   lastCommit: string;
   trendData: number[];
-  // Audit
   auditIssues: AuditIssue[];
-  // Architecture
   architectureComponents: ArchitectureComponent[];
   architectureEdges: ArchitectureEdge[];
-  // Scan history
   scanHistory: ScanSnapshot[];
-  // Notes
   notes: Note[];
-  // Health
   prevScore: number | null;
+  aiAnalysis?: string;
+  fileCount?: number;
 }
 
 export interface AuthUser {
@@ -119,13 +115,13 @@ export interface AuthUser {
 }
 
 interface AppStoreValue {
-  // Auth
   user: AuthUser | null;
   isAuthed: boolean;
+  isLoadingAuth: boolean;
+  loginWithGitHub: () => Promise<void>;
   login: (user: AuthUser) => void;
   logout: () => void;
 
-  // Projects
   projects: Project[];
   addProject: (project: Project) => void;
   createProjectFromMeta: (meta: GitHubRepoMeta) => Project;
@@ -133,7 +129,6 @@ interface AppStoreValue {
   deleteProject: (id: string) => void;
   getProject: (id: string) => Project | undefined;
 
-  // Notes (per-project helpers)
   addNote: (projectId: string, note: Note) => void;
   updateNote: (projectId: string, noteId: string, updates: Partial<Note>) => void;
   deleteNote: (projectId: string, noteId: string) => void;
@@ -141,7 +136,6 @@ interface AppStoreValue {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Deterministic color from repo name */
 export function repoColor(name: string): string {
   const colors = ["#1a5c38", "#2563eb", "#7c3aed", "#d97706", "#0891b2", "#ea580c", "#db2777"];
   let hash = 0;
@@ -149,12 +143,10 @@ export function repoColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-/** Generate a short scan ID */
 export function newScanId(): string {
   return Math.random().toString(36).slice(2, 9);
 }
 
-/** Format "X min ago" / "just now" */
 export function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
@@ -166,7 +158,6 @@ export function relativeTime(iso: string): string {
   return `${days} day${days > 1 ? "s" : ""} ago`;
 }
 
-/** Parse "owner/repo" or full GitHub URL into { owner, repo, name, repoUrl } */
 export function parseRepo(raw: string): { owner: string; repo: string; name: string; repoUrl: string } {
   const clean = raw
     .replace(/^https?:\/\//, "")
@@ -183,11 +174,6 @@ export function parseRepo(raw: string): { owner: string; repo: string; name: str
   return { owner, repo, name, repoUrl: `github.com/${owner}/${repo}` };
 }
 
-/**
- * Creates a clean Project entry from validated GitHub repository metadata.
- * AI analysis values (health scores, vulnerability lists, DAGs) are set to pending/empty
- * until the backend API processes the codebase.
- */
 export function createProjectEntry(meta: GitHubRepoMeta): Project {
   const projectId = `${meta.owner}-${meta.repo}`.toLowerCase();
   const now = new Date();
@@ -206,7 +192,7 @@ export function createProjectEntry(meta: GitHubRepoMeta): Project {
     stars: meta.stars,
     forks: meta.forks,
     openIssuesCount: meta.openIssues,
-    healthScore: null, // null = pending real analysis
+    healthScore: null,
     lastScan: "Just added",
     issuesCount: 0,
     color: repoColor(meta.repo),
@@ -251,6 +237,8 @@ export function createProjectEntry(meta: GitHubRepoMeta): Project {
 const AppStoreContext = createContext<AppStoreValue>({
   user: null,
   isAuthed: false,
+  isLoadingAuth: true,
+  loginWithGitHub: async () => {},
   login: () => {},
   logout: () => {},
   projects: [],
@@ -279,19 +267,20 @@ function saveState(state: PersistedState) {
   }
 }
 
+function mapSupabaseUser(sbUser: any): AuthUser {
+  const meta = sbUser.user_metadata || {};
+  return {
+    name: meta.full_name || meta.name || sbUser.email || "GitHub User",
+    email: sbUser.email || "",
+    avatar: meta.avatar_url || meta.picture || "",
+    githubUsername: meta.user_name || meta.preferred_username || "",
+  };
+}
+
 export function AppStoreProvider({ children }: { children: React.ReactNode }) {
-  // Lazy initializers read from localStorage once — avoids calling setState
-  // inside a useEffect body, which the linter flags as cascading renders.
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return null;
-      return (JSON.parse(raw) as PersistedState).user ?? null;
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(true);
+
   const [projects, setProjects] = useState<Project[]>(() => {
     if (typeof window === "undefined") return [];
     try {
@@ -302,20 +291,59 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       return [];
     }
   });
-  // hydrated is always true when using lazy useState initializers — kept for
-  // the persist effect dependency below.
-  const hydrated = true;
 
-  // Persist on every change
   useEffect(() => {
-    if (!hydrated) return;
     saveState({ user, projects });
-  }, [user, projects, hydrated]);
+  }, [user, projects]);
 
-  const login = useCallback((u: AuthUser) => setUser(u), []);
-  const logout = useCallback(() => {
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(mapSupabaseUser(session.user));
+      } else {
+        setUser(null);
+      }
+      setIsLoadingAuth(false);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (session?.user) {
+          setUser(mapSupabaseUser(session.user));
+        } else {
+          setUser(null);
+        }
+        setIsLoadingAuth(false);
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const loginWithGitHub = useCallback(async () => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const redirectTo = `${origin}/auth/callback`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "github",
+      options: {
+        redirectTo,
+      },
+    });
+    if (error) throw error;
+  }, []);
+
+  const login = useCallback((u: AuthUser) => {
+    setUser(u);
+  }, []);
+
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem("tessera_authed");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("tessera_authed");
+    }
   }, []);
 
   const addProject = useCallback((p: Project) => {
@@ -387,6 +415,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         isAuthed: !!user,
+        isLoadingAuth,
+        loginWithGitHub,
         login,
         logout,
         projects,
@@ -400,7 +430,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         deleteNote,
       }}
     >
-      {hydrated ? children : null}
+      {children}
     </AppStoreContext.Provider>
   );
 }

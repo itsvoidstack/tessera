@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PublicNavbar from "@/components/PublicNavbar";
 import {
@@ -10,6 +10,7 @@ import {
 import GitHubIcon from "@/components/GitHubIcon";
 import HeroDiagram from "@/components/HeroDiagram";
 import { validateGitHubRepo } from "@/lib/api-client";
+import { useAppStore } from "@/lib/store";
 
 const SAMPLE_REPOS = ["facebook/react", "vercel/next.js", "supabase/supabase"];
 
@@ -65,6 +66,14 @@ export default function LandingPage() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const router = useRouter();
+
+  const { isAuthed, isLoadingAuth } = useAppStore();
+
+  useEffect(() => {
+    if (!isLoadingAuth && isAuthed) {
+      router.replace("/dashboard");
+    }
+  }, [isAuthed, isLoadingAuth, router]);
 
   async function handleAnalyze(urlInput?: string) {
     const val = (urlInput ?? repoUrl).trim();
@@ -322,10 +331,10 @@ export default function LandingPage() {
               </div>
 
               <button
-                onClick={() => router.push("/login")}
-                className="w-full bg-gray-900 hover:bg-black dark:bg-gray-800 dark:hover:bg-gray-700 text-white rounded-lg py-2.5 text-xs font-semibold transition-colors cursor-pointer"
+                disabled
+                className="w-full bg-gray-100 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 rounded-lg py-2.5 text-xs font-semibold cursor-not-allowed text-center"
               >
-                Upgrade to Pro
+                Coming Soon
               </button>
             </div>
 
@@ -345,10 +354,10 @@ export default function LandingPage() {
               </div>
 
               <button
-                onClick={() => router.push("/login")}
-                className="w-full border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg py-2.5 text-xs font-semibold transition-colors cursor-pointer"
+                disabled
+                className="w-full bg-gray-100 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 rounded-lg py-2.5 text-xs font-semibold cursor-not-allowed text-center"
               >
-                Contact Team Sales
+                Coming Soon
               </button>
             </div>
           </div>
