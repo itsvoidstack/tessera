@@ -1,8 +1,8 @@
 "use client";
 
-import { use, useState, useMemo } from "react";
+import { use, useState, useMemo, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   FolderOpen, FileText, Folder, ChevronRight, ChevronDown, Search, ExternalLink, Code2, Copy, Check
 } from "lucide-react";
@@ -17,11 +17,19 @@ export default function CodeExplorerPage({ params }: { params: Promise<{ id: str
   const { id } = use(params);
   const { getProject } = useAppStore();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fileParam = searchParams.get("file");
   const project = getProject(id);
 
-  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(fileParam);
   const [searchQuery, setSearchQuery] = useState("");
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (fileParam) {
+      setSelectedFilePath(fileParam);
+    }
+  }, [fileParam]);
 
   const files = useMemo(() => project?.files ?? [], [project]);
 

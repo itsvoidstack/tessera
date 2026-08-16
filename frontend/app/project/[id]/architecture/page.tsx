@@ -1,9 +1,11 @@
 "use client";
 
-import { use, useState, useMemo } from "react";
+import { use, useState, useMemo, useRef, useEffect } from "react";
 import { useAppStore, type ArchitectureComponent, type ArchitectureEdge } from "@/lib/store";
 import { useRouter } from "next/navigation";
-import { Maximize2, Minus, Plus, AlignLeft, GitBranch, Layers, AlertCircle } from "lucide-react";
+import {
+  Maximize2, Minus, Plus, GitBranch, Layers, ExternalLink, Move, Code2
+} from "lucide-react";
 
 function generateArchitectureFromFiles(
   files: Array<{ path: string; size: number; content: string }> | undefined,
@@ -16,7 +18,6 @@ function generateArchitectureFromFiles(
   const nodes: ArchitectureComponent[] = [];
   const edges: ArchitectureEdge[] = [];
 
-  // Group files into categories
   const entryFiles: string[] = [];
   const coreFiles: string[] = [];
   const dataFiles: string[] = [];
@@ -42,23 +43,20 @@ function generateArchitectureFromFiles(
     }
   });
 
-  let nextId = 1;
-
-  // 1. Entry Point Node
+  // Generous column spacing (260px) and row spacing (130px) to guarantee ZERO overlap
   const entryNodeId = "node_entry";
   const entryLabel = entryFiles[0] ? entryFiles[0].split("/").pop() || "main" : `${repoName} Entry`;
   nodes.push({
     id: entryNodeId,
     label: entryLabel,
-    sublabel: "Application Entry Point",
+    sublabel: entryFiles[0] || "Application Entry Point",
     tech: entryFiles[0]?.endsWith(".py") ? "Python / FastAPI" : "TypeScript / Next.js",
     type: "entry",
     color: "#1a5c38",
-    x: 60,
-    y: 180,
+    x: 80,
+    y: 220,
   });
 
-  // 2. Core Modules Node
   if (coreFiles.length > 0) {
     const coreNodeId = "node_core";
     nodes.push({
@@ -68,12 +66,11 @@ function generateArchitectureFromFiles(
       tech: "Business Logic",
       type: "core",
       color: "#2563eb",
-      x: 280,
-      y: 100,
+      x: 340,
+      y: 90,
     });
     edges.push({ from: entryNodeId, to: coreNodeId, type: "direct" });
 
-    // Individual core files (up to 3)
     coreFiles.slice(0, 3).forEach((cf, idx) => {
       const fn = cf.split("/").pop() || cf;
       const subId = `node_core_${idx}`;
@@ -84,14 +81,13 @@ function generateArchitectureFromFiles(
         tech: "Core Logic",
         type: "subcore",
         color: "#3b82f6",
-        x: 520,
-        y: 60 + idx * 80,
+        x: 620,
+        y: 40 + idx * 110,
       });
       edges.push({ from: coreNodeId, to: subId, type: "direct" });
     });
   }
 
-  // 3. UI & Frontend Node
   if (uiFiles.length > 0) {
     const uiNodeId = "node_ui";
     nodes.push({
@@ -101,12 +97,11 @@ function generateArchitectureFromFiles(
       tech: "React / Tailwind",
       type: "ui",
       color: "#d97706",
-      x: 280,
-      y: 280,
+      x: 340,
+      y: 350,
     });
     edges.push({ from: entryNodeId, to: uiNodeId, type: "direct" });
 
-    // Individual UI files (up to 2)
     uiFiles.slice(0, 2).forEach((uf, idx) => {
       const fn = uf.split("/").pop() || uf;
       const subId = `node_ui_${idx}`;
@@ -117,25 +112,24 @@ function generateArchitectureFromFiles(
         tech: "Component",
         type: "subui",
         color: "#f59e0b",
-        x: 520,
-        y: 300 + idx * 80,
+        x: 620,
+        y: 370 + idx * 110,
       });
       edges.push({ from: uiNodeId, to: subId, type: "direct" });
     });
   }
 
-  // 4. Data / Store Node
   if (dataFiles.length > 0) {
     const dataNodeId = "node_data";
     nodes.push({
       id: dataNodeId,
       label: "State & Data Layer",
-      sublabel: `${dataFiles.length} state schemas`,
+      sublabel: dataFiles[0] || `${dataFiles.length} state schemas`,
       tech: "State / Storage",
       type: "data",
       color: "#7c3aed",
-      x: 280,
-      y: 440,
+      x: 340,
+      y: 540,
     });
     edges.push({ from: entryNodeId, to: dataNodeId, type: "indirect" });
   }
@@ -150,10 +144,11 @@ export default function ArchitecturePage({ params }: { params: Promise<{ id: str
   const project = getProject(id);
 
   const [zoom, setZoom] = useState(100);
-  const [selected, setSelected] = useState<ArchitectureComponent | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
-  const { components, edges } = useMemo(() => {
+  // Initial layout calculation
+  const initialData = useMemo(() => {
     if (!project) return { components: [], edges: [] };
     if (project.architectureComponents && project.architectureComponents.length > 0) {
       return {
@@ -163,6 +158,20 @@ export default function ArchitecturePage({ params }: { params: Promise<{ id: str
     }
     return generateArchitectureFromFiles(project.files, project.name);
   }, [project]);
+
+  // Interactive Draggable Node Positions State
+  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
+  useEffect(() => {
+    const posMap: Record<string, { x: number; y: number }> = {};
+    initialData.components.forEach((c) => {
+      posMap[c.id] = { x: c.x, y: c.y };
+    });
+    setPositions(posMap);
+  }, [initialData]);
 
   if (!project) {
     return (
@@ -181,16 +190,80 @@ export default function ArchitecturePage({ params }: { params: Promise<{ id: str
     );
   }
 
-  const activeComp = selected ?? components[0] ?? null;
+  const components = initialData.components;
+  const edges = initialData.edges;
+
+  const activeComp = useMemo(() => {
+    if (!components.length) return null;
+    return components.find((c) => c.id === selectedId) || components[0];
+  }, [components, selectedId]);
+
+  // Derive Real Incoming (Dependents) and Outgoing (Dependencies) relationships
+  const outgoingDependencies = useMemo(() => {
+    if (!activeComp) return [];
+    return edges
+      .filter((e) => e.from === activeComp.id)
+      .map((e) => components.find((c) => c.id === e.to))
+      .filter(Boolean) as ArchitectureComponent[];
+  }, [activeComp, edges, components]);
+
+  const incomingDependents = useMemo(() => {
+    if (!activeComp) return [];
+    return edges
+      .filter((e) => e.to === activeComp.id)
+      .map((e) => components.find((c) => c.id === e.from))
+      .filter(Boolean) as ArchitectureComponent[];
+  }, [activeComp, edges, components]);
+
+  // Dragging event handlers
+  function handleNodeMouseDown(e: React.MouseEvent, nodeId: string) {
+    e.stopPropagation();
+    setDraggingNodeId(nodeId);
+    setSelectedId(nodeId);
+
+    const pos = positions[nodeId] || { x: 0, y: 0 };
+    if (svgRef.current) {
+      const pt = svgRef.current.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const cursor = pt.matrixTransform(svgRef.current.getScreenCTM()?.inverse());
+      dragOffsetRef.current = { x: cursor.x - pos.x, y: cursor.y - pos.y };
+    }
+  }
+
+  function handleSvgMouseMove(e: React.MouseEvent) {
+    if (!draggingNodeId || !svgRef.current) return;
+    const pt = svgRef.current.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const cursor = pt.matrixTransform(svgRef.current.getScreenCTM()?.inverse());
+    const newX = Math.round(cursor.x - dragOffsetRef.current.x);
+    const newY = Math.round(cursor.y - dragOffsetRef.current.y);
+
+    setPositions((prev) => ({
+      ...prev,
+      [draggingNodeId]: { x: newX, y: newY },
+    }));
+  }
+
+  function handleSvgMouseUp() {
+    setDraggingNodeId(null);
+  }
+
+  function openCodeExplorerForSelected() {
+    if (!activeComp) return;
+    const filePath = activeComp.sublabel.includes("/") ? activeComp.sublabel : activeComp.label;
+    router.push(`/project/${id}/code-explorer?file=${encodeURIComponent(filePath)}`);
+  }
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-[#0f172a] transition-colors">
+    <div className="h-full flex flex-col bg-white dark:bg-[#0f172a] transition-colors select-none">
       {/* Header */}
       <div className="flex items-center justify-between px-8 py-5 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-[#0f172a] flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Architecture Map</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            Interactive module graph extracted from repository analysis.
+            Interactive module graph extracted from repository analysis. Click and drag nodes to rearrange layout.
           </p>
         </div>
       </div>
@@ -205,7 +278,7 @@ export default function ArchitecturePage({ params }: { params: Promise<{ id: str
               Architecture Analysis Pending
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mb-6 leading-relaxed">
-              Run repository analysis to generate an interactive dependency and architecture diagram.
+              Run repository analysis to generate an interactive dependency diagram.
             </p>
             <div className="inline-flex items-center gap-2 border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded-lg px-4 py-2 text-xs text-gray-600 dark:text-gray-300">
               <Layers size={14} className="text-gray-400" />
@@ -241,17 +314,24 @@ export default function ArchitecturePage({ params }: { params: Promise<{ id: str
                   <Plus size={12} />
                 </button>
               </div>
-              <div className="text-xs text-gray-400 ml-auto font-mono">
-                {components.length} Modules · {edges.length} Dependencies
+              <div className="text-xs text-gray-400 ml-auto font-mono flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 text-gray-500">
+                  <Move size={12} /> Drag nodes to move
+                </span>
+                <span>• {components.length} Modules</span>
               </div>
             </div>
 
-            {/* SVG Diagram */}
+            {/* SVG Diagram Canvas */}
             <div className="flex-1 overflow-hidden bg-white dark:bg-[#0b0f17] relative">
               <svg
-                viewBox="0 0 760 580"
+                ref={svgRef}
+                viewBox="0 0 950 680"
                 className="w-full h-full"
                 style={{ transform: `scale(${zoom / 100})`, transformOrigin: "center" }}
+                onMouseMove={handleSvgMouseMove}
+                onMouseUp={handleSvgMouseUp}
+                onMouseLeave={handleSvgMouseUp}
               >
                 <defs>
                   <pattern id="dots" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
@@ -264,53 +344,63 @@ export default function ArchitecturePage({ params }: { params: Promise<{ id: str
                     <path d="M0,0 L0,6 L8,3 z" fill="#1a5c38" />
                   </marker>
                 </defs>
-                <rect width="760" height="580" fill="url(#dots)" />
+                <rect width="950" height="680" fill="url(#dots)" />
 
-                {/* Edges */}
+                {/* Dynamic Edges */}
                 {edges.map((edge, i) => {
-                  const from = components.find((c) => c.id === edge.from);
-                  const to = components.find((c) => c.id === edge.to);
-                  if (!from || !to) return null;
+                  const fromComp = components.find((c) => c.id === edge.from);
+                  const toComp = components.find((c) => c.id === edge.to);
+                  if (!fromComp || !toComp) return null;
+
+                  const fromPos = positions[fromComp.id] || { x: fromComp.x, y: fromComp.y };
+                  const toPos = positions[toComp.id] || { x: toComp.x, y: toComp.y };
 
                   const isConnectedToHovered =
                     hoveredNodeId !== null &&
                     (edge.from === hoveredNodeId || edge.to === hoveredNodeId);
+                  const isConnectedToSelected =
+                    activeComp !== null &&
+                    (edge.from === activeComp.id || edge.to === activeComp.id);
+
+                  const highlight = isConnectedToHovered || isConnectedToSelected;
 
                   return (
                     <line
                       key={i}
-                      x1={from.x + 60}
-                      y1={from.y + 30}
-                      x2={to.x + 60}
-                      y2={to.y + 30}
-                      stroke={isConnectedToHovered ? "#1a5c38" : "#d1d5db"}
-                      strokeWidth={isConnectedToHovered ? "2.5" : "1.5"}
+                      x1={fromPos.x + 70}
+                      y1={fromPos.y + 30}
+                      x2={toPos.x + 70}
+                      y2={toPos.y + 30}
+                      stroke={highlight ? "#1a5c38" : "#d1d5db"}
+                      strokeWidth={highlight ? "2.5" : "1.5"}
                       strokeDasharray={edge.type === "indirect" ? "5,4" : undefined}
-                      markerEnd={isConnectedToHovered ? "url(#arrow-highlight)" : "url(#arrow)"}
-                      className="transition-all duration-200"
+                      markerEnd={highlight ? "url(#arrow-highlight)" : "url(#arrow)"}
+                      className="transition-all duration-150"
                     />
                   );
                 })}
 
-                {/* Nodes */}
+                {/* Draggable Nodes */}
                 {components.map((comp) => {
+                  const pos = positions[comp.id] || { x: comp.x, y: comp.y };
                   const isSelected = activeComp?.id === comp.id;
                   const isHovered = hoveredNodeId === comp.id;
+                  const isDragging = draggingNodeId === comp.id;
 
                   return (
                     <g
                       key={comp.id}
-                      transform={`translate(${comp.x}, ${comp.y})`}
-                      onClick={() => setSelected(comp)}
+                      transform={`translate(${pos.x}, ${pos.y})`}
+                      onMouseDown={(e) => handleNodeMouseDown(e, comp.id)}
                       onMouseEnter={() => setHoveredNodeId(comp.id)}
                       onMouseLeave={() => setHoveredNodeId(null)}
-                      className="cursor-pointer transition-transform duration-150"
+                      className={`cursor-grab ${isDragging ? "cursor-grabbing" : ""}`}
                     >
                       <rect
-                        width="130"
+                        width="140"
                         height="60"
                         rx="8"
-                        className="fill-white dark:fill-gray-900 transition-all duration-200 shadow-sm"
+                        className="fill-white dark:fill-gray-900 transition-shadow duration-150 shadow-sm"
                         stroke={isSelected || isHovered ? comp.color : "#e5e7eb"}
                         strokeWidth={isSelected || isHovered ? 2.5 : 1.5}
                       />
@@ -318,13 +408,28 @@ export default function ArchitecturePage({ params }: { params: Promise<{ id: str
                       <text x="19" y="24" textAnchor="middle" fill={comp.color} fontSize="10" fontWeight="bold">
                         {"</>"}
                       </text>
-                      <text x="65" y="24" textAnchor="middle" className="fill-gray-900 dark:fill-gray-100 text-[10px] font-semibold">
-                        {comp.label}
+                      <text
+                        x="72"
+                        y="24"
+                        textAnchor="middle"
+                        className="fill-gray-900 dark:fill-gray-100 text-[10px] font-semibold"
+                      >
+                        {comp.label.length > 14 ? comp.label.slice(0, 14) + "..." : comp.label}
                       </text>
-                      <text x="65" y="37" textAnchor="middle" className="fill-gray-500 dark:fill-gray-400 text-[8px]">
-                        {comp.sublabel}
+                      <text
+                        x="72"
+                        y="37"
+                        textAnchor="middle"
+                        className="fill-gray-500 dark:fill-gray-400 text-[8px]"
+                      >
+                        {comp.sublabel.length > 20 ? comp.sublabel.slice(0, 20) + "..." : comp.sublabel}
                       </text>
-                      <text x="65" y="50" textAnchor="middle" className="fill-gray-400 dark:fill-gray-500 text-[7px]">
+                      <text
+                        x="72"
+                        y="50"
+                        textAnchor="middle"
+                        className="fill-gray-400 dark:fill-gray-500 text-[7px]"
+                      >
                         {comp.tech}
                       </text>
                     </g>
@@ -335,29 +440,92 @@ export default function ArchitecturePage({ params }: { params: Promise<{ id: str
           </div>
         )}
 
-        {/* Details Panel */}
+        {/* Detailed Module Info Panel */}
         {activeComp && components.length > 0 && (
-          <div className="w-[260px] border-l border-gray-100 dark:border-gray-800 bg-white dark:bg-[#0f172a] overflow-y-auto p-5 flex-shrink-0">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-4">
-              Module Info
-            </div>
-            <div className="flex items-center gap-2 mb-3">
-              <div
-                className="w-7 h-7 rounded-md flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
-                style={{ backgroundColor: activeComp.color }}
-              >
-                {"</>"}
+          <div className="w-[280px] border-l border-gray-100 dark:border-gray-800 bg-white dark:bg-[#0f172a] overflow-y-auto p-5 flex-shrink-0 flex flex-col justify-between">
+            <div>
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-4">
+                Module Info
               </div>
-              <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                {activeComp.label}
-              </span>
+              <div className="flex items-center gap-2 mb-3">
+                <div
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
+                  style={{ backgroundColor: activeComp.color }}
+                >
+                  {"</>"}
+                </div>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                  {activeComp.label}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 leading-relaxed truncate">
+                {activeComp.sublabel}
+              </p>
+
+              <div className="space-y-3 border-t border-gray-100 dark:border-gray-800 pt-3">
+                <div>
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1 font-semibold">
+                    Layer / Tech
+                  </div>
+                  <div className="text-xs border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded px-2 py-1 text-gray-700 dark:text-gray-300 font-mono inline-block">
+                    {activeComp.tech}
+                  </div>
+                </div>
+
+                {/* Real Dependencies */}
+                <div>
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1 font-semibold">
+                    Dependencies ({outgoingDependencies.length})
+                  </div>
+                  {outgoingDependencies.length === 0 ? (
+                    <div className="text-xs text-gray-400 italic">None</div>
+                  ) : (
+                    <div className="space-y-1">
+                      {outgoingDependencies.map((dep) => (
+                        <div
+                          key={dep.id}
+                          onClick={() => setSelectedId(dep.id)}
+                          className="text-xs text-[#1a5c38] dark:text-green-400 hover:underline cursor-pointer flex items-center gap-1 font-medium truncate"
+                        >
+                          → {dep.label}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Real Dependents */}
+                <div>
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1 font-semibold">
+                    Dependents ({incomingDependents.length})
+                  </div>
+                  {incomingDependents.length === 0 ? (
+                    <div className="text-xs text-gray-400 italic">None</div>
+                  ) : (
+                    <div className="space-y-1">
+                      {incomingDependents.map((dep) => (
+                        <div
+                          key={dep.id}
+                          onClick={() => setSelectedId(dep.id)}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1 font-medium truncate"
+                        >
+                          ← {dep.label}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 leading-relaxed">
-              {activeComp.sublabel}
-            </p>
-            <div className="text-xs text-gray-400 mb-1">Layer / Tech</div>
-            <div className="text-xs border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded px-2 py-1 text-gray-700 dark:text-gray-300 font-mono inline-block">
-              {activeComp.tech}
+
+            {/* Action button to open in Code Explorer */}
+            <div className="pt-4 border-t border-gray-100 dark:border-gray-800 mt-4">
+              <button
+                onClick={openCodeExplorerForSelected}
+                className="w-full flex items-center justify-center gap-1.5 bg-[#1a5c38] hover:bg-[#145230] dark:bg-green-600 dark:hover:bg-green-700 text-white rounded-lg py-2 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                <Code2 size={13} /> Open in Code Explorer
+              </button>
             </div>
           </div>
         )}

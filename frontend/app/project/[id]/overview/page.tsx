@@ -1,11 +1,11 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import ScoreRing from "@/components/ScoreRing";
 import HealthBar from "@/components/HealthBar";
 import {
-  GitBranch, Terminal, Star, GitFork, AlertCircle, ExternalLink, RefreshCw, Shield, StickyNote, Activity,
+  GitBranch, Terminal, Star, GitFork, AlertCircle, ExternalLink, RefreshCw, Shield, StickyNote, Activity, ChevronDown, ChevronUp
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -24,6 +24,8 @@ export default function OverviewPage({ params }: { params: Promise<{ id: string 
   const { getProject } = useAppStore();
   const router = useRouter();
   const project = getProject(id);
+
+  const [expandedSummary, setExpandedSummary] = useState(false);
 
   if (!project) {
     return (
@@ -44,6 +46,11 @@ export default function OverviewPage({ params }: { params: Promise<{ id: string 
   }
 
   const isPending = project.healthScore === null;
+  const summaryText = project.projectSummary || "Repository scan pending.";
+  const isLongSummary = summaryText.length > 220;
+  const summaryDisplay = isLongSummary && !expandedSummary
+    ? summaryText.slice(0, 220) + "..."
+    : summaryText;
 
   return (
     <div className="p-8 max-w-6xl mx-auto page-enter">
@@ -167,15 +174,31 @@ export default function OverviewPage({ params }: { params: Promise<{ id: string 
           </div>
         </div>
 
-        {/* Summary Card */}
+        {/* Collapsible Project Status Summary Card */}
         <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-5 bg-white dark:bg-gray-900 flex flex-col justify-between">
           <div>
             <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
               Project Status
             </div>
-            <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
-              {project.projectSummary}
+            <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed mb-2 whitespace-pre-line">
+              {summaryDisplay}
             </p>
+            {isLongSummary && (
+              <button
+                onClick={() => setExpandedSummary((exp) => !exp)}
+                className="text-xs text-[#1a5c38] dark:text-green-400 font-semibold hover:underline mb-4 inline-flex items-center gap-1 cursor-pointer"
+              >
+                {expandedSummary ? (
+                  <>
+                    Collapse analysis <ChevronUp size={12} />
+                  </>
+                ) : (
+                  <>
+                    View full analysis <ChevronDown size={12} />
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
           <div className="space-y-2 pt-3 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400">
