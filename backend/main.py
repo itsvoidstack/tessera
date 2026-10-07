@@ -161,6 +161,7 @@ def github_headers() -> dict[str, str]:
     return headers
 
 
+<<<<<<< Updated upstream
 def security_audit_issues(analyzed_files: list[dict]) -> list[dict]:
     """Find executable security risks while ignoring comments and string literals."""
     checks = (
@@ -191,6 +192,16 @@ def security_audit_issues(analyzed_files: list[dict]) -> list[dict]:
                     })
 
     return findings
+=======
+def github_request(url: str, timeout: int = 10, params: dict = None) -> requests.Response:
+    """Make a request to GitHub API, with fallback for invalid/expired GITHUB_TOKEN."""
+    headers = github_headers()
+    res = requests.get(url, headers=headers, timeout=timeout, params=params)
+    if res.status_code == 401 and GITHUB_TOKEN:
+        unauth_headers = {"Accept": "application/vnd.github+json"}
+        res = requests.get(url, headers=unauth_headers, timeout=timeout, params=params)
+    return res
+>>>>>>> Stashed changes
 
 
 def static_scores(tree_data: dict, analyzed_files: list[dict]) -> tuple[dict, int]:
@@ -267,9 +278,8 @@ def validate_repository(repo_url: str):
     owner, repo = parse_github_repository(repo_url)
 
     try:
-        response = requests.get(
+        response = github_request(
             f"https://api.github.com/repos/{owner}/{repo}",
-            headers=github_headers(),
             timeout=10,
         )
     except requests.RequestException:
@@ -336,9 +346,8 @@ async def scan_repository(request: ScanRequest):
     )
 
     try:
-        response = requests.get(
+        response = github_request(
             repo_api_url,
-            headers=headers,
             timeout=10
         )
 
@@ -381,9 +390,8 @@ async def scan_repository(request: ScanRequest):
     )
 
     try:
-        tree_response = requests.get(
+        tree_response = github_request(
             tree_api_url,
-            headers=headers,
             timeout=15
         )
 
@@ -554,9 +562,8 @@ async def scan_repository(request: ScanRequest):
         )
 
         try:
-            content_response = requests.get(
+            content_response = github_request(
                 content_api_url,
-                headers=headers,
                 timeout=10
             )
 

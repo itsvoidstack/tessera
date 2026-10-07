@@ -73,8 +73,8 @@ export default function DashboardPage() {
       setShowAddModal(false);
       setNewRepoInput("");
       router.push(`/scan?repo=${encodeURIComponent(res.meta.htmlUrl)}`);
-    } catch {
-      setModalError("Failed to validate repository.");
+    } catch (err: any) {
+      setModalError(err?.message || "Failed to validate repository.");
       setIsValidating(false);
     }
   }

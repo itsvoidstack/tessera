@@ -103,8 +103,8 @@ export default function LandingPage() {
 
       setIsValidating(false);
       router.push(`/scan?repo=${encodeURIComponent(result.meta.htmlUrl)}`);
-    } catch {
-      setValidationError("Failed to validate repository. Please check your internet connection.");
+    } catch (err: any) {
+      setValidationError(err?.message || "Failed to validate repository. Please check your internet connection.");
       setIsValidating(false);
     }
   }
