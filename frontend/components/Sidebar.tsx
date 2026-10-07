@@ -138,7 +138,7 @@ export default function Sidebar({ projectId }: SidebarProps) {
       {/* Bottom */}
       <div className="border-t border-gray-100 dark:border-gray-800 py-3 px-2 space-y-0.5">
         {[
-          { Icon: Settings,   label: "Settings",      href: "/settings" },
+          { Icon: Settings,   label: "AI Settings",   href: "/settings" },
           { Icon: HelpCircle, label: "Help & Support", href: "/help"     },
         ].map(({ Icon, label, href }) => (
           <Link

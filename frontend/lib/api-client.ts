@@ -181,7 +181,7 @@ export async function generateNoteInsight(
     if (err instanceof Error) {
       if (err.name === "TypeError" || err.message.toLowerCase().includes("fetch")) {
         throw new Error(
-          `Unable to connect to Tessera backend API (${API_BASE_URL}). Please verify backend is running and GEMINI_API_KEY is configured.`
+          `Unable to connect to Tessera backend API (${API_BASE_URL}). Please verify backend is running.`
         );
       }
       throw err;
@@ -189,4 +189,113 @@ export async function generateNoteInsight(
     throw new Error("An unexpected error occurred during note insight generation.");
   }
 }
+
+// -----------------------------------------
+// AI Gateway & Multi-Provider API Client
+// -----------------------------------------
+
+export interface ModelInfo {
+  id: string;
+  name: string;
+  description: string;
+  context_window: number;
+  is_default: boolean;
+}
+
+export interface ProviderCapability {
+  streaming: boolean;
+  tool_calling: boolean;
+  context_window: number;
+  structured_output: boolean;
+  vision: boolean;
+}
+
+export interface ProviderInfo {
+  id: string;
+  name: string;
+  description: string;
+  auth_type: string;
+  supports_byok: boolean;
+  supported_models: ModelInfo[];
+  capabilities: ProviderCapability;
+  official_auth_note: string;
+}
+
+export interface ProviderConnectionStatus {
+  provider_id: string;
+  connected: boolean;
+  auth_source: string;
+  account_email?: string;
+  masked_key: string;
+  status: string;
+  selected_model?: string;
+}
+
+export interface AIStatusResponse {
+  primary_provider: string;
+  fallback_provider?: string;
+  provider_models: Record<string, string>;
+  providers: Record<string, ProviderConnectionStatus>;
+}
+
+export async function fetchAIProviders(): Promise<ProviderInfo[]> {
+  const res = await fetch(`${API_BASE_URL}/api/ai/providers`);
+  if (!res.ok) throw new Error("Failed to fetch AI providers");
+  return await res.json();
+}
+
+export async function fetchAIStatus(): Promise<AIStatusResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/ai/status`);
+  if (!res.ok) throw new Error("Failed to fetch AI gateway status");
+  return await res.json();
+}
+
+export async function authorizeOAuthProvider(providerId: string) {
+  const res = await fetch(`${API_BASE_URL}/api/ai/providers/${providerId}/oauth/authorize`);
+  if (!res.ok) throw new Error(`Failed to initiate OAuth for provider ${providerId}`);
+  const data = await res.json();
+  if (data.auth_url) {
+    window.location.href = data.auth_url;
+  }
+}
+
+export async function connectAIProvider(providerId: string, apiKey: string) {
+  const res = await fetch(`${API_BASE_URL}/api/ai/providers/${providerId}/connect`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: apiKey }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail || `Failed to connect provider ${providerId}`);
+  }
+  return await res.json();
+}
+
+export async function disconnectAIProvider(providerId: string) {
+  const res = await fetch(`${API_BASE_URL}/api/ai/providers/${providerId}/disconnect`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(`Failed to disconnect provider ${providerId}`);
+  return await res.json();
+}
+
+export async function updateAIPreferences(prefs: {
+  primary_provider: string;
+  fallback_provider?: string;
+  provider_models?: Record<string, string>;
+}) {
+  const res = await fetch(`${API_BASE_URL}/api/ai/preferences`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(prefs),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail || "Failed to update AI preferences");
+  }
+  return await res.json();
+}
+
+
 
