@@ -1302,31 +1302,45 @@ async def evaluate_for_hackathon_judges(request: JudgeEvaluateRequest):
         except Exception as e:
             logger.warning(f"Judge evaluation file fetch warning: {e}")
 
-    # Inspect code for mock patterns vs real implementation
+    # Inspect code for mock patterns vs real implementation & project type
     detected_red_flags = []
     has_real_backend = False
     has_real_api_call = False
+    is_portfolio_or_static = False
+
+    # Check repository name / description for portfolio indicators
+    repo_name_lower = repo.lower()
+    description_lower = (repo_info.get("description") or "").lower() if 'repo_info' in locals() and repo_info else ""
+    if any(k in repo_name_lower for k in ["portfolio", "resume", "cv", "personal", "bio", "showcase"]) or \
+       any(k in description_lower for k in ["portfolio", "resume", "personal website", "cv"]):
+        is_portfolio_or_static = True
 
     file_summary = ""
+    backend_file_count = 0
+    total_lines_approx = 0
+
     for f in analyzed_files:
-        p = f.get("path", "")
+        p = f.get("path", "").lower()
         c = f.get("content", "")
-        file_summary += f"\nFile: {p} ({len(c)} chars)"
+        total_lines_approx += len(c.splitlines())
+        file_summary += f"\nFile: {f.get('path')} ({len(c)} chars)"
 
         # Check for mock indicators
-        if "settimeout(" in c.lower() and ("mock" in c.lower() or "fake" in c.lower() or "dummy" in c.lower()):
+        if "settimeout(" in c.lower() and any(k in c.lower() for k in ["mock", "fake", "dummy", "sample"]):
             detected_red_flags.append({
                 "severity": "Medium",
                 "title": "Simulated Delay / Mock Pattern Detected",
-                "description": f"Found simulated delay timer in {p} that may mimic an API call.",
-                "location": p
+                "description": f"Found simulated delay timer in {f.get('path')} mimicking API latency.",
+                "location": f.get("path")
             })
 
         if "fetch(" in c or "axios." in c or "requests." in c:
             has_real_api_call = True
 
-        if p.endswith((".py", ".go", ".rs", ".java")) or "api/" in p or "server" in p:
+        if any(p.endswith(ext) for ext in [".py", ".go", ".rs", ".java", ".cpp", ".c", ".php", ".rb"]) or \
+           "server" in p or "api/" in p or "routes/" in p or "controllers/" in p:
             has_real_backend = True
+            backend_file_count += 1
 
         if "todo" in c.lower() or "fixme" in c.lower():
             todo_count = c.lower().count("todo")
@@ -1334,32 +1348,52 @@ async def evaluate_for_hackathon_judges(request: JudgeEvaluateRequest):
                 detected_red_flags.append({
                     "severity": "Low",
                     "title": f"Unfinished Stubs ({todo_count} TODOs)",
-                    "description": f"Found {todo_count} unfinished stubs in {p}.",
-                    "location": p
+                    "description": f"Found {todo_count} unfinished stubs in {f.get('path')}.",
+                    "location": f.get("path")
                 })
 
-    system_prompt = f"""You are an elite, highly experienced hackathon judge evaluating submissions for prizes.
-Your goal is to provide an objective, rapid, evidence-backed evaluation of the repository {owner}/{repo}.
-Be fair, rigorous, and inspiring. Recognize genuine engineering depth while spotting superficial UI wrappers or template forks.
+    # If repository has only static files (html, css, basic jsx/tsx with no server or api routes)
+    if backend_file_count == 0 and not has_real_api_call:
+        is_portfolio_or_static = True
+
+    # Adjust default category if detected as portfolio/static
+    effective_category = request.hackathon_category
+    if is_portfolio_or_static and ("AI" in effective_category or "Developer Tools" in effective_category):
+        effective_category = "Static Website / Personal Showcase"
+
+    system_prompt = f"""You are a senior, highly demanding and uncompromising Hackathon Judge evaluating submissions for major competitive prizes.
+Your evaluation must be STRICT, RIGOROUS, EVIDENCE-GROUNDED, and UNBIASED.
+
+CRITICAL JUDGING RULES (DO NOT INFLATE SCORES):
+1. IF THIS IS A PORTFOLIO WEBSITE, PERSONAL SITE, RESUME, SIMPLE LANDING PAGE, OR STATIC FRONTEND:
+   - Innovation score MUST be between 30 and 55. A personal portfolio or landing page is not an innovative breakthrough.
+   - Technical Execution score MUST be between 35 and 55. Static UI without complex state or backend services lacks depth.
+   - Working Reality score MUST be between 35 and 55, and 'is_real_backend' MUST BE FALSE.
+   - Overall Score MUST reflect a standard static presentation (40 to 58).
+   - Verdict MUST be 'Static Portfolio / Frontend Showcase' or 'Superficial Mock / Template'.
+   - DO NOT claim it has 'decoupled service boundaries' or 'typed server routes' if none exist!
+
+2. ONLY AWARD 80+ SCORES IF:
+   - The repository implements genuine, original, and working full-stack engineering, non-trivial algorithmic pipelines, custom backend services, or novel AI integration.
 
 Respond ONLY with a valid JSON object matching this schema:
 {{
-  "verdict": "Production-Grade Engineering | Solid Working Prototype | Early Prototype with Stubs | Superficial Mock / Template",
-  "verdict_summary": "2 crisp sentences summarizing the technical impression for judges.",
+  "verdict": "Production-Grade Engineering | Solid Working Prototype | Early Prototype with Stubs | Static Portfolio / Frontend Showcase | Superficial Mock / Template",
+  "verdict_summary": "2 crisp sentences summarizing the honest technical impression for judges.",
   "overall_score": integer (0 to 100),
-  "originality_score": integer (0 to 100, measuring custom engineering vs standard boilerplate),
+  "originality_score": integer (0 to 100, measuring custom engineering vs standard boilerplate/templates),
   "rubric": {{
     "innovation": {{
       "score": integer (0 to 100),
-      "comment": "Assessment of novelty, concept, and ambition"
+      "comment": "Rigorous critique of concept novelty and ambition"
     }},
     "technical_execution": {{
       "score": integer (0 to 100),
-      "comment": "Depth of implementation, architecture complexity, backend logic"
+      "comment": "Critique of architecture, backend depth, and state complexity"
     }},
     "security_reliability": {{
       "score": integer (0 to 100),
-      "comment": "Error handling, input validation, secret hygiene"
+      "comment": "Input validation, error handling, secret hygiene"
     }},
     "code_cleanliness": {{
       "score": integer (0 to 100),
@@ -1368,7 +1402,7 @@ Respond ONLY with a valid JSON object matching this schema:
     "working_reality": {{
       "score": integer (0 to 100),
       "is_real_backend": boolean,
-      "comment": "Real working implementation vs hardcoded mocks"
+      "comment": "Honest assessment of real working backend/API vs static UI or mock"
     }}
   }},
   "key_strengths": ["Strength 1", "Strength 2", "Strength 3"],
@@ -1377,14 +1411,14 @@ Respond ONLY with a valid JSON object matching this schema:
 """
 
     prompt = f"""Evaluate repository {owner}/{repo}.
-Hackathon Category: {request.hackathon_category}
-Health Score: {request.health_score or 82}/100
-Analyzed Source Structure:
-{file_summary}
-
-Has Real Backend Detected: {has_real_backend}
+Declared Category: {effective_category}
+Detected As Portfolio / Static Showcase: {is_portfolio_or_static}
+Has Real Backend Detected: {has_real_backend} (Backend files: {backend_file_count})
 Has Real Network Calls: {has_real_api_call}
 Pre-scanned red flags: {json.dumps(detected_red_flags)}
+
+Analyzed Source Structure:
+{file_summary[:12000]}
 """
 
     try:
@@ -1407,29 +1441,63 @@ Pre-scanned red flags: {json.dumps(detected_red_flags)}
         }
     except Exception as e:
         logger.error(f"Hackathon Judge evaluation failed: {e}")
-        # Resilient fallback evaluation
+
+        # Realistic, evidence-based dynamic fallback
+        if is_portfolio_or_static:
+            return {
+                "status": "partial_fallback",
+                "error": str(e),
+                "evaluation": {
+                    "verdict": "Static Portfolio / Frontend Showcase",
+                    "verdict_summary": f"{owner}/{repo} is a client-side personal portfolio showcase. It presents clean visual styling but lacks server-side architectural complexity or distributed data pipelines.",
+                    "overall_score": 54,
+                    "originality_score": 48,
+                    "rubric": {
+                        "innovation": {"score": 45, "comment": "Standard personal portfolio format; limited novelty or algorithmic innovation."},
+                        "technical_execution": {"score": 52, "comment": "Static frontend presentation without backend microservices, database transactions, or distributed logic."},
+                        "security_reliability": {"score": 75, "comment": "Low attack surface due to lack of backend ingestion or user authentication endpoints."},
+                        "code_cleanliness": {"score": 72, "comment": "Readable component structure and static assets layout."},
+                        "working_reality": {"score": 50, "is_real_backend": False, "comment": "Static client deployment only. No server backend or dynamic API services detected."}
+                    },
+                    "key_strengths": [
+                        "Clean visual presentation and frontend layout",
+                        "Low operational overhead with static hosting compatibility",
+                        "Cohesive presentation of personal projects and bio"
+                    ],
+                    "red_flags": [
+                        {
+                            "severity": "Medium",
+                            "title": "No Server-Side Backend Detected",
+                            "description": "Repository consists primarily of static client-side views without API routes or database integration.",
+                            "location": "repository root"
+                        }
+                    ],
+                    "judge_feedback_markdown": f"### 🏆 Overall Impression\n\n**{owner}/{repo}** serves well as a personal portfolio and frontend presentation. However, from a competitive hackathon judging lens, it lacks the technical depth, backend services, and novelty expected of winning engineering projects.\n\n### 💡 Innovation & Concept\nStandard personal showcase website. While functional for personal branding, it does not introduce new developer paradigms or algorithmic advances.\n\n### ⚙️ Technical Depth\nPurely client-side UI. Missing persistent databases, async background workers, or authenticated API routes.\n\n### 🚩 Recommendations\n- Introduce dynamic features (e.g., interactive live demos, headless CMS integration, server-side analytics)\n- Build full-stack capabilities with real database persistence."
+                }
+            }
+
         return {
             "status": "partial_fallback",
             "error": str(e),
             "evaluation": {
-                "verdict": "Solid Working Prototype",
-                "verdict_summary": f"{owner}/{repo} demonstrates a solid functional implementation with clear modular separation between UI and backend services.",
-                "overall_score": 84,
-                "originality_score": 82,
+                "verdict": "Solid Working Prototype" if has_real_backend else "Early Prototype with Stubs",
+                "verdict_summary": f"{owner}/{repo} demonstrates a functional implementation with {len(analyzed_files)} source files reviewed.",
+                "overall_score": 74 if has_real_backend else 60,
+                "originality_score": 70 if has_real_backend else 55,
                 "rubric": {
-                    "innovation": {"score": 85, "comment": "Strong concept with practical developer and engineering utility."},
-                    "technical_execution": {"score": 83, "comment": "Good architecture with decoupled service boundaries and typed APIs."},
-                    "security_reliability": {"score": 80, "comment": "Standard sanitization present; error handling covers primary flows."},
-                    "code_cleanliness": {"score": 86, "comment": "Clean directory layout and cohesive component responsibilities."},
-                    "working_reality": {"score": 85, "is_real_backend": has_real_backend or True, "comment": "Real server routes and reactive client state."}
+                    "innovation": {"score": 68, "comment": "Practical project utility; follows established architectural conventions."},
+                    "technical_execution": {"score": 72 if has_real_backend else 58, "comment": "Core logic present; can benefit from expanded error boundaries and test coverage."},
+                    "security_reliability": {"score": 70, "comment": "Baseline sanitization present; review unhandled edge cases."},
+                    "code_cleanliness": {"score": 76, "comment": "Modular directory structure with clear file naming."},
+                    "working_reality": {"score": 75 if has_real_backend else 55, "is_real_backend": has_real_backend, "comment": "Functional client and server endpoints." if has_real_backend else "Lacks verified server backend."}
                 },
                 "key_strengths": [
-                    "Well-defined architecture separating presentation from backend intelligence",
-                    "Direct integration with Google Gemini model APIs",
-                    "Practical developer workflow tooling"
+                    "Modular structure separating client and logic layers",
+                    "Typed component structure",
+                    "Straightforward setup and deployment path"
                 ],
                 "red_flags": detected_red_flags,
-                "judge_feedback_markdown": f"### 🏆 Overall Impression\n\n**{owner}/{repo}** presents an impressive and ambitious hackathon project. The architecture demonstrates real technical craftsmanship rather than just a shallow UI wrapper.\n\n### 💡 Innovation & Concept\nStrong concept solving real developer pain points across codebase understanding and engineering lifecycle.\n\n### ⚙️ Technical Depth\nGood separation of frontend components and backend services.\n\n### 🚩 Recommendations\n- Expand automated test coverage for core edge cases\n- Continue hardening error boundaries for intermittent network timeouts."
+                "judge_feedback_markdown": f"### 🏆 Overall Impression\n\n**{owner}/{repo}** demonstrates a solid working prototype with room for architectural hardening.\n\n### 💡 Innovation & Concept\nAddresses a defined use case with clean modularity.\n\n### ⚙️ Technical Depth\nCore functionality is established. Ensure error boundaries handle server timeouts gracefully."
             }
         }
 

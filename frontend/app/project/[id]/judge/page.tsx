@@ -17,6 +17,7 @@ const HACKATHON_CATEGORIES = [
   "AI & Developer Tools",
   "Full-Stack Web App",
   "FinTech & Web3",
+  "Static Website / Personal Showcase",
   "Productivity & Workflow",
   "Infrastructure & Cloud",
 ];
@@ -128,6 +129,14 @@ export default function HackathonJudgePage({
         border: "border-blue-500/40",
         glow: "from-blue-500/10 via-blue-500/5 to-transparent",
         icon: "⚡",
+      };
+    }
+    if (v.includes("static portfolio") || v.includes("frontend showcase")) {
+      return {
+        badge: "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700",
+        border: "border-slate-400/40",
+        glow: "from-slate-500/10 via-slate-500/5 to-transparent",
+        icon: "🌐",
       };
     }
     if (v.includes("early prototype")) {
@@ -293,8 +302,12 @@ export default function HackathonJudgePage({
                         {label}
                       </span>
                       {key === "working_reality" && (
-                        <span className="text-[9px] bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.2 rounded font-semibold border border-emerald-300 dark:border-emerald-800">
-                          {data?.is_real_backend ? "✓ Real Backend" : "Mock UI Only"}
+                        <span className={`text-[9px] px-2 py-0.5 rounded font-semibold border ${
+                          data?.is_real_backend
+                            ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
+                            : "bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800"
+                        }`}>
+                          {data?.is_real_backend ? "✓ Real Backend" : "⚠ Static Client (No Server Backend)"}
                         </span>
                       )}
                     </div>

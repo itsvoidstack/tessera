@@ -111,6 +111,8 @@ export interface Project {
   aiAnalysis?: string;
   fileCount?: number;
   files?: Array<{ path: string; size: number; content: string }>;
+  enabledAnalyses?: string[];
+  completedAnalyses?: string[];
 }
 
 export interface AuthUser {

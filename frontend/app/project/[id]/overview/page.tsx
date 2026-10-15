@@ -5,7 +5,7 @@ import { useAppStore } from "@/lib/store";
 import ScoreRing from "@/components/ScoreRing";
 import HealthBar from "@/components/HealthBar";
 import {
-  GitBranch, Terminal, Star, GitFork, AlertCircle, ExternalLink, RefreshCw, Shield, StickyNote, Activity, ChevronDown, ChevronUp, Award, Compass, MessageCircle
+  GitBranch, Terminal, Star, GitFork, AlertCircle, ExternalLink, RefreshCw, Shield, StickyNote, Activity, ChevronDown, ChevronUp, Award, Compass, MessageCircle, Sparkles, CheckCircle2, Play, ArrowRight, Layers
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -19,9 +19,62 @@ const SCORE_LABELS = [
   { key: "dependencies"  as const, label: "Dependencies" },
 ] as const;
 
+const ANALYSIS_MODULES = [
+  {
+    id: "audit",
+    name: "Security & Vulnerability Audit",
+    category: "Code Risk & Safety",
+    desc: "AST static analysis for dangerous dynamic calls, unsanitized inputs, and CVE vectors.",
+    route: "audit",
+    icon: Shield,
+    color: "text-emerald-500",
+    bgLight: "bg-emerald-50 dark:bg-emerald-950/40",
+  },
+  {
+    id: "architecture",
+    name: "System Architecture & Dependency DAG",
+    category: "System Structure",
+    desc: "Interactive multi-layer dependency graph visualizer of files, entrypoints, and services.",
+    route: "architecture",
+    icon: GitBranch,
+    color: "text-blue-500",
+    bgLight: "bg-blue-50 dark:bg-blue-950/40",
+  },
+  {
+    id: "judge",
+    name: "Hackathon Judge Scorecard & Rubric",
+    category: "Evaluation & Benchmarking",
+    desc: "Strict 60-second rubric scorecard (Innovation, Execution, Working Reality) and Devpost critique.",
+    route: "judge",
+    icon: Award,
+    color: "text-amber-500",
+    bgLight: "bg-amber-50 dark:bg-amber-950/40",
+  },
+  {
+    id: "planner",
+    name: "Mind Planner & Architectural Sprints",
+    category: "Ideation & Roadmapping",
+    desc: "Interactive DAG node-link canvas, tech stack trade-offs matrix, DB schema, and sprint milestones.",
+    route: "planner",
+    icon: Compass,
+    color: "text-purple-500",
+    bgLight: "bg-purple-50 dark:bg-purple-950/40",
+  },
+  {
+    id: "notes",
+    name: "Developer Onboarding & Engineering Notes",
+    category: "Documentation & Knowledge",
+    desc: "AI onboarding guide, architectural synthesis, and personal dev notes synced to Supabase.",
+    route: "notes",
+    icon: StickyNote,
+    color: "text-rose-500",
+    bgLight: "bg-rose-50 dark:bg-rose-950/40",
+  },
+];
+
 export default function OverviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { getProject } = useAppStore();
+  const { getProject, updateProject } = useAppStore();
   const router = useRouter();
   const project = getProject(id);
 
@@ -51,6 +104,39 @@ export default function OverviewPage({ params }: { params: Promise<{ id: string 
   const summaryDisplay = isLongSummary && !expandedSummary
     ? summaryText.slice(0, 220) + "..."
     : summaryText;
+
+  // Analysis completion status
+  const enabledSet = project.enabledAnalyses
+    ? new Set(project.enabledAnalyses)
+    : new Set(["audit", "architecture"]); // default baseline
+
+  const missedModules = ANALYSIS_MODULES.filter((m) => !enabledSet.has(m.id));
+
+  const handleRunMissedAnalysis = (moduleId: string, route: string) => {
+    const currentEnabled = project.enabledAnalyses || ["audit", "architecture"];
+    const currentCompleted = project.completedAnalyses || ["audit", "architecture"];
+    const updatedEnabled = Array.from(new Set([...currentEnabled, moduleId]));
+    const updatedCompleted = Array.from(new Set([...currentCompleted, moduleId]));
+
+    updateProject(project.id, {
+      enabledAnalyses: updatedEnabled,
+      completedAnalyses: updatedCompleted,
+    });
+
+    router.push(`/project/${project.id}/${route}`);
+  };
+
+  const handleRunAllMissed = () => {
+    const allIds = ANALYSIS_MODULES.map((m) => m.id);
+    updateProject(project.id, {
+      enabledAnalyses: allIds,
+      completedAnalyses: allIds,
+    });
+
+    if (missedModules.length > 0) {
+      router.push(`/project/${project.id}/${missedModules[0].route}`);
+    }
+  };
 
   return (
     <div className="p-8 max-w-6xl mx-auto page-enter">
@@ -138,7 +224,7 @@ export default function OverviewPage({ params }: { params: Promise<{ id: string 
       </div>
 
       {/* Main Health / Backend Status Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 section-enter stagger-2">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 section-enter stagger-2">
         {/* Health Score Card */}
         <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-5 bg-white dark:bg-gray-900">
           <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
@@ -239,8 +325,110 @@ export default function OverviewPage({ params }: { params: Promise<{ id: string 
         </div>
       </div>
 
-      {/* Quick Navigation Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 section-enter stagger-3">
+      {/* =========================================================
+          MODULAR ANALYSIS STATUS & ON-DEMAND EXECUTION SECTION
+      ========================================================= */}
+      <div className="border border-gray-200 dark:border-gray-800 rounded-xl p-6 bg-white dark:bg-gray-900 mb-8 section-enter stagger-3 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-gray-100 dark:border-gray-800 mb-5 gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles size={16} className="text-emerald-600 dark:text-emerald-400" />
+              <h2 className="text-base font-bold text-gray-900 dark:text-white">
+                Analysis Modules & On-Demand Capabilities
+              </h2>
+              <span className="text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-full px-2.5 py-0.5">
+                {ANALYSIS_MODULES.length - missedModules.length} of {ANALYSIS_MODULES.length} Active
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Run any analysis modules that were skipped during the initial scan. Tessera and Gemini will synthesize insights on-demand.
+            </p>
+          </div>
+
+          {missedModules.length > 0 && (
+            <button
+              onClick={handleRunAllMissed}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
+            >
+              <Sparkles size={13} />
+              Run All Missed Analyses ({missedModules.length})
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {ANALYSIS_MODULES.map((module) => {
+            const isAnalyzed = enabledSet.has(module.id);
+            const Icon = module.icon;
+
+            return (
+              <div
+                key={module.id}
+                className={`flex flex-col justify-between p-4 rounded-xl border transition-all ${
+                  isAnalyzed
+                    ? "border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/60 shadow-xs hover:border-emerald-500/40"
+                    : "border-dashed border-amber-300 dark:border-amber-800/60 bg-amber-50/20 dark:bg-amber-950/10"
+                }`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-lg ${module.bgLight} flex items-center justify-center flex-shrink-0`}>
+                        <Icon size={16} className={module.color} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-gray-900 dark:text-white line-clamp-1">
+                          {module.name}
+                        </div>
+                        <div className="text-[10px] text-gray-400 dark:text-gray-500">
+                          {module.category}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-4">
+                    {module.desc}
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between gap-2">
+                  {isAnalyzed ? (
+                    <>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                        <CheckCircle2 size={12} />
+                        Analyzed & Ready
+                      </span>
+                      <Link
+                        href={`/project/${project.id}/${module.route}`}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-[#1a5c38] dark:text-green-400 hover:underline"
+                      >
+                        View <ArrowRight size={12} />
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/40 px-2 py-0.5 rounded-md">
+                        Skipped in Scan
+                      </span>
+                      <button
+                        onClick={() => handleRunMissedAnalysis(module.id, module.route)}
+                        className="inline-flex items-center gap-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-2.5 py-1 transition-colors cursor-pointer shadow-xs"
+                      >
+                        <Sparkles size={11} />
+                        Run with Gemini
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Secondary Fast Access Links */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 section-enter stagger-4">
         {[
           { label: "Architecture Map", desc: "View module DAG",        href: `/project/${id}/architecture`, Icon: GitBranch },
           { label: "AI Code Audit",   desc: "View detected issues",   href: `/project/${id}/audit`,        Icon: Shield    },
@@ -250,7 +438,7 @@ export default function OverviewPage({ params }: { params: Promise<{ id: string 
           <Link
             key={nav.label}
             href={nav.href}
-            className="border border-gray-200 dark:border-gray-800 rounded-lg p-4 bg-white dark:bg-gray-900 hover:border-[#1a5c38] dark:hover:border-green-500 hover:shadow-sm transition-all group"
+            className="border border-gray-200 dark:border-gray-800 rounded-lg p-4 bg-white dark:bg-gray-900 hover:border-[#1a5c38] dark:hover:border-green-500 hover:shadow-xs transition-all group"
           >
             <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 flex items-center justify-center mb-3 group-hover:bg-green-50 dark:group-hover:bg-green-950/40 transition-colors">
               <nav.Icon size={16} className="text-gray-700 dark:text-gray-300 group-hover:text-[#1a5c38] dark:group-hover:text-green-400 transition-colors" />
