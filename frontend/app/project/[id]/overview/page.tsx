@@ -5,7 +5,7 @@ import { useAppStore } from "@/lib/store";
 import ScoreRing from "@/components/ScoreRing";
 import HealthBar from "@/components/HealthBar";
 import {
-  GitBranch, Terminal, Star, GitFork, AlertCircle, ExternalLink, RefreshCw, Shield, StickyNote, Activity, ChevronDown, ChevronUp
+  GitBranch, Terminal, Star, GitFork, AlertCircle, ExternalLink, RefreshCw, Shield, StickyNote, Activity, ChevronDown, ChevronUp, Award, Compass
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -72,6 +72,20 @@ export default function OverviewPage({ params }: { params: Promise<{ id: string 
           <p className="text-xs text-gray-500 dark:text-gray-400">{project.description || "Public GitHub Repository"}</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href={`/project/${project.id}/planner`}
+            className="flex items-center gap-1.5 border border-emerald-300 dark:border-emerald-800 bg-emerald-50/80 dark:bg-emerald-950/40 rounded-lg px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/70 transition-colors shadow-sm"
+          >
+            <Compass size={13} className="text-emerald-600 dark:text-emerald-400" />
+            Mind Planner
+          </Link>
+          <Link
+            href={`/project/${project.id}/judge`}
+            className="flex items-center gap-1.5 border border-amber-300 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-950/40 rounded-lg px-3 py-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/70 transition-colors shadow-sm"
+          >
+            <Award size={13} className="text-amber-600 dark:text-amber-400" />
+            Judge Mode
+          </Link>
           <Link
             href={`/scan?project=${project.id}`}
             className="flex items-center gap-1.5 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"

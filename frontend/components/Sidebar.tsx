@@ -7,6 +7,7 @@ import {
   LayoutGrid, GitBranch, FolderOpen, Shield, StickyNote,
   Activity, RefreshCw, MessageCircle, BookOpen, Settings,
   HelpCircle, ChevronDown, Menu, X, ChevronRight, Home,
+  Award, Compass,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 
@@ -26,14 +27,17 @@ export default function Sidebar({ projectId }: SidebarProps) {
 
   const projectNav = projectId ? [
     { label: "Overview",         icon: LayoutGrid, href: `${base}/overview` },
+    { label: "Mind Planner",     icon: Compass,    href: `${base}/planner` },
     { label: "Architecture",     icon: GitBranch,  href: `${base}/architecture` },
+    { label: "Judge Mode",       icon: Award,      href: `${base}/judge` },
     { label: "Code Explorer",    icon: FolderOpen, href: `${base}/code-explorer` },
     { label: "AI Code Audit",    icon: Shield,     href: `${base}/audit` },
     { label: "Notes",            icon: StickyNote, href: `${base}/notes` },
     { label: "Health Report",    icon: Activity,   href: `${base}/health` },
     { label: "Rescan & Compare", icon: RefreshCw,  href: `${base}/rescan` },
   ] : [
-    { label: "Dashboard", icon: Home, href: "/dashboard" },
+    { label: "Dashboard",    icon: Home,    href: "/dashboard" },
+    { label: "Mind Planner", icon: Compass, href: "/planner" },
   ];
 
   const comingSoon = [

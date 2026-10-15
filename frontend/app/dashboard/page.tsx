@@ -12,7 +12,7 @@ import { useAppStore, Project } from "@/lib/store";
 import { validateGitHubRepo } from "@/lib/api-client";
 import {
   Plus, Search, MoreHorizontal, ArrowRight, LayoutGrid, List,
-  ExternalLink, Trash2, RefreshCw, X, GitBranch, AlertCircle, Loader2, Star, GitFork,
+  ExternalLink, Trash2, RefreshCw, X, GitBranch, AlertCircle, Loader2, Star, GitFork, Compass,
 } from "lucide-react";
 import GitHubIcon from "@/components/GitHubIcon";
 
@@ -237,12 +237,21 @@ export default function DashboardPage() {
                   Manage and audit your GitHub repositories.
                 </p>
               </div>
-              <button
-                onClick={() => { setShowAddModal(true); setModalError(null); setNewRepoInput(""); }}
-                className="flex items-center gap-2 bg-[#1a5c38] hover:bg-[#145230] dark:bg-green-600 dark:hover:bg-green-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-2xs cursor-pointer active:scale-[0.98]"
-              >
-                <Plus size={16} /> Analyze New Repository
-              </button>
+              <div className="flex items-center gap-2.5">
+                <Link
+                  href="/planner"
+                  className="flex items-center gap-2 border border-emerald-300 dark:border-emerald-800 bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/70 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+                >
+                  <Compass size={16} className="text-emerald-600 dark:text-emerald-400" />
+                  Mind Planner
+                </Link>
+                <button
+                  onClick={() => { setShowAddModal(true); setModalError(null); setNewRepoInput(""); }}
+                  className="flex items-center gap-2 bg-[#1a5c38] hover:bg-[#145230] dark:bg-green-600 dark:hover:bg-green-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-2xs cursor-pointer active:scale-[0.98]"
+                >
+                  <Plus size={16} /> Analyze New Repository
+                </button>
+              </div>
             </div>
 
             {/* Toolbar */}
