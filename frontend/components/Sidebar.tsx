@@ -27,6 +27,7 @@ export default function Sidebar({ projectId }: SidebarProps) {
 
   const projectNav = projectId ? [
     { label: "Overview",         icon: LayoutGrid, href: `${base}/overview` },
+    { label: "Ask Tessera",      icon: MessageCircle, href: `${base}/assistant` },
     { label: "Mind Planner",     icon: Compass,    href: `${base}/planner` },
     { label: "Architecture",     icon: GitBranch,  href: `${base}/architecture` },
     { label: "Judge Mode",       icon: Award,      href: `${base}/judge` },
@@ -41,8 +42,7 @@ export default function Sidebar({ projectId }: SidebarProps) {
   ];
 
   const comingSoon = [
-    { label: "Ask Tessera", icon: MessageCircle },
-    { label: "Quiz",        icon: BookOpen },
+    { label: "Quiz & Certify", icon: BookOpen },
   ];
 
   const isActive = (href: string) =>
