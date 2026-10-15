@@ -10,23 +10,21 @@ import { useToast } from "@/hooks/useToast";
 import { useTheme } from "@/lib/theme";
 import { useAppStore } from "@/lib/store";
 import {
-  Sun, Moon, Monitor, Trash2, AlertTriangle, RotateCcw,
-  LayoutGrid, ChevronRight, Cpu, CheckCircle2, XCircle,
-  Key, ShieldCheck, Zap, RefreshCw, Layers
+  Sun, Moon, Monitor, Trash2, RotateCcw,
+  LayoutGrid, ChevronRight, Cpu, CheckCircle2,
+  Key, ShieldCheck, Zap, RefreshCw, Sparkles,
+  Layers, Compass, Award, Terminal
 } from "lucide-react";
 
 import {
-  fetchAIProviders,
-  fetchAIStatus,
-  connectAIProvider,
-  disconnectAIProvider,
-  updateAIPreferences,
-  authorizeOAuthProvider,
-  ProviderInfo,
-  AIStatusResponse,
+  fetchAIEngineStatus,
+  testAIEngine,
+  updateGeminiPreferences,
+  disconnectGeminiBYOK,
+  AIEngineStatusResponse,
 } from "@/lib/api-client";
 
-/* ─── Small reusable primitives ─────────────────────────────────────────── */
+/* ─── Reusable Card Components ─────────────────────────────────────────── */
 
 function SectionCard({
   title,
@@ -38,7 +36,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
+    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm">
       <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h2>
         {description && (
@@ -117,82 +115,89 @@ export default function SettingsPage() {
     return (localStorage.getItem("tessera_default_landing") as "dashboard" | "landing") ?? "dashboard";
   });
 
-  const [motion, setMotion] = useState<"on" | "reduced">(() => {
-    if (typeof window === "undefined") return "on";
-    return (localStorage.getItem("tessera_motion") as "on" | "reduced") ?? "on";
-  });
-
   const [clearConfirm, setClearConfirm] = useState<"projects" | "all" | null>(null);
 
-  /* AI Gateway State */
-  const [providers, setProviders] = useState<ProviderInfo[]>([]);
-  const [aiStatus, setAiStatus] = useState<AIStatusResponse | null>(null);
-  const [loadingAI, setLoadingAI] = useState(true);
-  const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
-  const [inputApiKey, setInputApiKey] = useState("");
-  const [submittingKey, setSubmittingKey] = useState(false);
+  /* AI Engine State */
+  const [engineStatus, setEngineStatus] = useState<AIEngineStatusResponse | null>(null);
+  const [loadingEngine, setLoadingEngine] = useState(true);
+  const [testingEngine, setTestingEngine] = useState(false);
+  const [testResult, setTestResult] = useState<{ status: string; latency_ms: number; message: string } | null>(null);
 
-  /* Load AI providers & status */
-  async function loadAISettings() {
-    setLoadingAI(true);
+  const [customKeyOpen, setCustomKeyOpen] = useState(false);
+  const [customApiKey, setCustomApiKey] = useState("");
+  const [savingKey, setSavingKey] = useState(false);
+
+  /* Load Gemini engine status */
+  async function loadEngine() {
+    setLoadingEngine(true);
     try {
-      const [provList, statusData] = await Promise.all([
-        fetchAIProviders(),
-        fetchAIStatus(),
-      ]);
-      setProviders(provList);
-      setAiStatus(statusData);
-    } catch (err) {
-      console.warn("Could not load AI Gateway settings from backend:", err);
+      const data = await fetchAIEngineStatus();
+      setEngineStatus(data);
+    } catch (err: any) {
+      console.warn("Could not load AI Engine status:", err);
     } finally {
-      setLoadingAI(false);
+      setLoadingEngine(false);
     }
   }
 
   useEffect(() => {
-    loadAISettings();
+    loadEngine();
   }, []);
 
-  async function handleConnectKey(providerId: string) {
-    if (!inputApiKey.trim()) {
-      toast("Please enter an API Key", "error");
+  async function handleTestEngine() {
+    setTestingEngine(true);
+    setTestResult(null);
+    try {
+      const res = await testAIEngine();
+      setTestResult(res);
+      if (res.status === "success") {
+        toast(`Gemini Engine online (${res.latency_ms}ms)`, "success");
+      } else {
+        toast(`Engine test failed: ${res.message}`, "error");
+      }
+    } catch (err: any) {
+      toast(err.message || "Ping test failed", "error");
+    } finally {
+      setTestingEngine(false);
+    }
+  }
+
+  async function handleModelChange(modelId: string) {
+    try {
+      await updateGeminiPreferences({ selected_model: modelId });
+      toast(`Switched model to ${modelId}`, "success");
+      await loadEngine();
+    } catch (err: any) {
+      toast(err.message || "Failed to switch model", "error");
+    }
+  }
+
+  async function handleSaveCustomKey() {
+    if (!customApiKey.trim()) {
+      toast("Please enter a valid Gemini API Key", "error");
       return;
     }
-    setSubmittingKey(true);
+    setSavingKey(true);
     try {
-      await connectAIProvider(providerId, inputApiKey.trim());
-      toast(`Successfully connected ${providerId} API Key`, "success");
-      setInputApiKey("");
-      setConnectingProvider(null);
-      await loadAISettings();
+      await updateGeminiPreferences({ api_key: customApiKey.trim() });
+      toast("Custom Gemini API Key saved & active", "success");
+      setCustomApiKey("");
+      setCustomKeyOpen(false);
+      await loadEngine();
     } catch (err: any) {
-      toast(err.message || "Connection failed", "error");
+      toast(err.message || "Failed to save key", "error");
     } finally {
-      setSubmittingKey(false);
+      setSavingKey(false);
     }
   }
 
-  async function handleDisconnect(providerId: string) {
+  async function handleResetToDefaultKey() {
     try {
-      await disconnectAIProvider(providerId);
-      toast(`Disconnected ${providerId}`, "info");
-      await loadAISettings();
+      await disconnectGeminiBYOK();
+      toast("Reverted to backend server attached key", "info");
+      await loadEngine();
     } catch (err: any) {
-      toast(err.message || "Failed to disconnect", "error");
-    }
-  }
-
-  async function handleUpdatePreferences(primary: string, fallback?: string, models?: Record<string, string>) {
-    try {
-      await updateAIPreferences({
-        primary_provider: primary,
-        fallback_provider: fallback,
-        provider_models: models,
-      });
-      toast("AI Gateway preferences updated", "success");
-      await loadAISettings();
-    } catch (err: any) {
-      toast(err.message || "Failed to update preferences", "error");
+      toast(err.message || "Failed to reset key", "error");
     }
   }
 
@@ -202,27 +207,6 @@ export default function SettingsPage() {
     toast("Preference saved", "success");
   }
 
-  function saveMotion(val: "on" | "reduced") {
-    setMotion(val);
-    localStorage.setItem("tessera_motion", val);
-    toast("Preference saved", "success");
-  }
-
-  function handleClearProjects() {
-    try {
-      const raw = localStorage.getItem("tessera_store_v3");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        parsed.projects = [];
-        localStorage.setItem("tessera_store_v3", JSON.stringify(parsed));
-      }
-    } catch {
-      // silent
-    }
-    setClearConfirm(null);
-    toast("Saved projects cleared. Reload to see changes.", "success");
-  }
-
   function handleClearAll() {
     const keys = Object.keys(localStorage).filter((k) => k.startsWith("tessera_"));
     keys.forEach((k) => localStorage.removeItem(k));
@@ -230,6 +214,10 @@ export default function SettingsPage() {
     toast("All local data cleared. Reloading…", "success");
     setTimeout(() => router.push("/"), 1200);
   }
+
+  const isConnected = engineStatus?.connected ?? false;
+  const authSource = engineStatus?.auth_source ?? "none";
+  const selectedModel = engineStatus?.selected_model ?? "gemini-2.5-flash";
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0b0f17] flex flex-col transition-colors">
@@ -243,224 +231,233 @@ export default function SettingsPage() {
 
               {/* Page header */}
               <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <Cpu className="text-[#1a5c38] dark:text-green-400" size={24} />
-                  Settings &amp; AI Gateway
-                </h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Configure multi-provider AI model routing, account connections, and interface preferences.
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
+                    <Sparkles size={18} />
+                  </span>
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    Settings &amp; AI Engine
+                  </h1>
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Configure Google Gemini model selection, verify connection health, and adjust workspace preferences.
                 </p>
               </div>
 
               <div className="space-y-6">
 
-                {/* ── Multi-Provider AI Gateway Section ──────────────────── */}
+                {/* ── Google Gemini Intelligence Engine Card ─────────────── */}
                 <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm">
+                  
+                  {/* Card Header */}
                   <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 flex items-center justify-between">
-                    <div>
-                      <h2 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                        <Layers size={16} className="text-[#1a5c38] dark:text-green-400" />
-                        AI Provider Connection &amp; Routing
-                      </h2>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        Tessera provides repository tools, agents, and prompts. Connect your preferred AI model provider below.
-                      </p>
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#1a5c38] to-emerald-400 flex items-center justify-center text-white shadow-sm">
+                        <Cpu size={16} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-sm font-bold text-gray-900 dark:text-white">
+                            Google Gemini Intelligence Engine
+                          </h2>
+                          {isConnected ? (
+                            <span className="flex items-center gap-1 text-[10px] bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-semibold px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
+                              <CheckCircle2 size={10} /> Active &amp; Ready
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-medium px-2 py-0.5 rounded-full">
+                              Connecting...
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          Powers Tessera Mind Planning, Code Auditing, and Hackathon Evaluation.
+                        </p>
+                      </div>
                     </div>
+
+                    {/* Diagnostic Ping Test Button */}
                     <button
-                      onClick={loadAISettings}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                      title="Refresh AI Status"
+                      onClick={handleTestEngine}
+                      disabled={testingEngine}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-950/70 transition-colors disabled:opacity-50"
+                      title="Ping Gemini Engine to test latency"
                     >
-                      <RefreshCw size={14} className={loadingAI ? "animate-spin text-green-500" : ""} />
+                      <Zap size={13} className={testingEngine ? "animate-bounce" : ""} />
+                      {testingEngine ? "Pinging..." : "Test Latency"}
                     </button>
                   </div>
 
                   <div className="p-6 space-y-6">
-                    {/* Informative Explanation Banner */}
-                    <div className="p-3.5 bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-lg text-xs text-blue-900 dark:text-blue-300 leading-relaxed">
-                      <p className="font-semibold mb-0.5">Tessera Intelligence Architecture</p>
-                      <p>
-                        Tessera provides the repository analysis, agents, tools, and workflows. Your selected AI provider supplies the model generation. Usage and rate limits depend on your connected provider key/account.
-                      </p>
+
+                    {/* Ping Test Result Banner (if run) */}
+                    {testResult && (
+                      <div className={`p-3 rounded-lg text-xs flex items-center justify-between border ${
+                        testResult.status === "success"
+                          ? "bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                          : "bg-red-50/70 dark:bg-red-950/30 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300"
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <Zap size={14} />
+                          <span>
+                            {testResult.status === "success"
+                              ? `Engine responded in ${testResult.latency_ms}ms. All capabilities operational.`
+                              : `Ping failed: ${testResult.message}`}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => setTestResult(null)}
+                          className="text-[11px] underline opacity-75 hover:opacity-100"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Connection Info Strip */}
+                    <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-semibold text-gray-900 dark:text-white flex items-center gap-1.5">
+                          <ShieldCheck size={14} className="text-emerald-600 dark:text-emerald-400" />
+                          <span>
+                            {authSource === "byok"
+                              ? "Custom Gemini API Key Override (Active)"
+                              : "Server Attached GEMINI_API_KEY (Active)"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                          {authSource === "byok"
+                            ? `Key ending in ${engineStatus?.masked_key}`
+                            : "Pre-configured on the backend environment. Ready to analyze repositories out of the box."}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {authSource === "byok" && (
+                          <button
+                            onClick={handleResetToDefaultKey}
+                            className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            Revert to Server Key
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setCustomKeyOpen(!customKeyOpen)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-800 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
+                        >
+                          {customKeyOpen ? "Hide Key Field" : authSource === "byok" ? "Update Key" : "Override Key"}
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Routing Preferences (Primary & Fallback) */}
-                    {aiStatus && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800">
+                    {/* Optional Custom Key Drawer */}
+                    {customKeyOpen && (
+                      <div className="p-4 bg-gray-50/80 dark:bg-gray-800/80 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
                         <div>
-                          <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 block mb-1">
-                            Primary AI Provider
+                          <label className="text-xs font-bold text-gray-800 dark:text-gray-200 block mb-1">
+                            Custom Gemini API Key Override (Optional)
                           </label>
-                          <select
-                            value={aiStatus.primary_provider}
-                            onChange={(e) => handleUpdatePreferences(e.target.value, aiStatus.fallback_provider)}
-                            className="w-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-green-500 outline-none"
-                          >
-                            <option value="gemini">Google Gemini (Default)</option>
-                            <option value="openai">OpenAI (GPT-4o)</option>
-                            <option value="claude">Anthropic Claude (Claude 3.5)</option>
-                          </select>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                            By default, Tessera uses the key attached to the backend. Enter your personal key below only if you wish to use your own Google AI Studio quota.
+                          </p>
                         </div>
-
-                        <div>
-                          <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 block mb-1">
-                            Fallback AI Provider (Optional)
-                          </label>
-                          <select
-                            value={aiStatus.fallback_provider || "none"}
-                            onChange={(e) => handleUpdatePreferences(aiStatus.primary_provider, e.target.value === "none" ? undefined : e.target.value)}
-                            className="w-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-green-500 outline-none"
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="password"
+                            value={customApiKey}
+                            onChange={(e) => setCustomApiKey(e.target.value)}
+                            placeholder="AIzaSy..."
+                            className="flex-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-xs text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                          />
+                          <button
+                            onClick={handleSaveCustomKey}
+                            disabled={savingKey}
+                            className="px-4 py-1.5 bg-[#1a5c38] text-white rounded-lg text-xs font-medium hover:bg-[#14482c] transition-colors disabled:opacity-50 flex-shrink-0"
                           >
-                            <option value="none">Disabled (No Fallback)</option>
-                            <option value="gemini">Google Gemini</option>
-                            <option value="openai">OpenAI</option>
-                            <option value="claude">Anthropic Claude</option>
-                          </select>
+                            {savingKey ? "Verifying..." : "Save & Verify"}
+                          </button>
                         </div>
                       </div>
                     )}
 
-                    {/* Provider Cards List */}
-                    <div className="space-y-4">
-                      {providers.map((prov) => {
-                        const status = aiStatus?.providers[prov.id];
-                        const isConnected = status?.connected;
-                        const authSource = status?.auth_source;
-                        const isPrimary = aiStatus?.primary_provider === prov.id;
-                        const isConnecting = connectingProvider === prov.id;
-
-                        return (
-                          <div
-                            key={prov.id}
-                            className={`p-4 rounded-xl border transition-all ${
-                              isPrimary
-                                ? "border-green-500/50 bg-green-50/20 dark:bg-green-950/10"
-                                : "border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex items-start gap-3">
-                                <div className="p-2.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 mt-0.5">
-                                  <Zap size={18} className={isPrimary ? "text-green-600 dark:text-green-400" : ""} />
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-                                      {prov.name}
-                                    </h3>
-                                    {isPrimary && (
-                                      <span className="text-[10px] bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full font-semibold">
-                                        Primary AI
-                                      </span>
-                                    )}
-                                    {isConnected ? (
-                                      <span className="flex items-center gap-1 text-[10px] bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-medium border border-emerald-200 dark:border-emerald-800">
-                                        <CheckCircle2 size={10} />
-                                        {authSource === "server_default"
-                                          ? "Connected (Server Default Key)"
-                                          : "Connected (API Key)"}
-                                      </span>
-                                    ) : (
-                                      <span className="flex items-center gap-1 text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full font-medium">
-                                        <XCircle size={10} /> Not Connected
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    {prov.description}
-                                  </p>
-
-                                  {/* Official Auth Note */}
-                                  <div className="text-[11px] text-gray-400 dark:text-gray-500 mt-1.5 flex items-center gap-1.5">
-                                    <ShieldCheck size={12} className="text-gray-400 flex-shrink-0" />
-                                    <span>{prov.official_auth_note}</span>
-                                  </div>
-                                </div>
+                    {/* Model Selection */}
+                    <div>
+                      <label className="text-xs font-bold text-gray-800 dark:text-gray-200 block mb-2">
+                        Active Gemini Model Architecture
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {engineStatus?.available_models.map((m) => {
+                          const isSelected = selectedModel === m.id;
+                          return (
+                            <div
+                              key={m.id}
+                              onClick={() => handleModelChange(m.id)}
+                              className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                                isSelected
+                                  ? "border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/20 shadow-sm"
+                                  : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 bg-white dark:bg-gray-900"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-bold text-gray-900 dark:text-white">
+                                  {m.name}
+                                </span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                                  isSelected
+                                    ? "bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300"
+                                    : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
+                                }`}>
+                                  {m.tag}
+                                </span>
                               </div>
-
-                              {/* Action Buttons */}
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                {authSource === "user_byok" && (
-                                  <button
-                                    onClick={() => handleDisconnect(prov.id)}
-                                    className="px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs font-medium transition-colors"
-                                  >
-                                    Disconnect
-                                  </button>
-                                )}
-
-                                <button
-                                  onClick={() => setConnectingProvider(isConnecting ? null : prov.id)}
-                                  className="px-3 py-1.5 rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-sm"
-                                >
-                                  <Key size={13} />
-                                  {authSource === "user_byok" ? "Update API Key" : "Connect API Key"}
-                                </button>
+                              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug line-clamp-2">
+                                {m.description}
+                              </p>
+                              <div className="mt-2 text-[10px] text-gray-400 dark:text-gray-500">
+                                Context: {Math.round(m.context_window / 1000000)}M tokens
                               </div>
                             </div>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-                            {/* Model Selector & Capabilities */}
-                            {isConnected && (
-                              <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-gray-500 dark:text-gray-400 font-medium">Active Model:</span>
-                                  <select
-                                    value={status?.selected_model || prov.supported_models[0]?.id}
-                                    onChange={(e) => {
-                                      const newModels = { ...aiStatus?.provider_models, [prov.id]: e.target.value };
-                                      handleUpdatePreferences(aiStatus?.primary_provider || "gemini", aiStatus?.fallback_provider, newModels);
-                                    }}
-                                    className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-white font-medium"
-                                  >
-                                    {prov.supported_models.map((m) => (
-                                      <option key={m.id} value={m.id}>
-                                        {m.name} ({Math.round(m.context_window / 1000)}k ctx)
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-
-                                <div className="flex items-center gap-3 text-[11px] text-gray-400 dark:text-gray-500">
-                                  <span>Context: {prov.capabilities.context_window.toLocaleString()} tokens</span>
-                                  <span>•</span>
-                                  <span>BYOK Supported ✓</span>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Key Connection Input Drawer */}
-                            {isConnecting && (
-                              <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700 space-y-2">
-                                <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block">
-                                  Enter {prov.name} API Key
-                                </label>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="password"
-                                    value={inputApiKey}
-                                    onChange={(e) => setInputApiKey(e.target.value)}
-                                    placeholder={`e.g. ${prov.id === "gemini" ? "AIzaSy..." : prov.id === "openai" ? "sk-proj-..." : "sk-ant-..."}`}
-                                    className="flex-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-xs text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-green-500"
-                                  />
-                                  <button
-                                    onClick={() => handleConnectKey(prov.id)}
-                                    disabled={submittingKey}
-                                    className="px-4 py-1.5 bg-[#1a5c38] text-white rounded-lg text-xs font-medium hover:bg-[#14482c] transition-colors disabled:opacity-50"
-                                  >
-                                    {submittingKey ? "Verifying..." : "Save & Verify"}
-                                  </button>
-                                  <button
-                                    onClick={() => setConnectingProvider(null)}
-                                    className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            )}
+                    {/* How Gemini Powers Tessera (3 Pillars) */}
+                    <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                      <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2.5">
+                        Active Tessera Capabilities Powered by Gemini:
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="p-3 bg-gray-50 dark:bg-gray-800/40 rounded-lg border border-gray-100 dark:border-gray-800">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-gray-900 dark:text-white mb-1">
+                            <Compass size={13} className="text-emerald-600 dark:text-emerald-400" />
+                            <span>Mind Planner</span>
                           </div>
-                        );
-                      })}
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                            Synthesizes ideas into system blueprints, visual DAGs, and sprint roadmaps.
+                          </p>
+                        </div>
+
+                        <div className="p-3 bg-gray-50 dark:bg-gray-800/40 rounded-lg border border-gray-100 dark:border-gray-800">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-gray-900 dark:text-white mb-1">
+                            <Terminal size={13} className="text-blue-600 dark:text-blue-400" />
+                            <span>Vibecoder Copilot</span>
+                          </div>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                            Explains codebase mental models, flags fake mocks, and guides refactoring.
+                          </p>
+                        </div>
+
+                        <div className="p-3 bg-gray-50 dark:bg-gray-800/40 rounded-lg border border-gray-100 dark:border-gray-800">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-gray-900 dark:text-white mb-1">
+                            <Award size={13} className="text-amber-600 dark:text-amber-400" />
+                            <span>Judge Mode</span>
+                          </div>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                            60-second executive summaries and objective hackathon rubric evaluation.
+                          </p>
+                        </div>
+                      </div>
                     </div>
 
                   </div>
@@ -490,7 +487,7 @@ export default function SettingsPage() {
 
                   <SettingRow
                     label="Default landing page"
-                    description="Default view after logging into Tessera."
+                    description="Default view after opening Tessera."
                   >
                     <SegmentedControl
                       value={defaultLanding}
@@ -507,7 +504,7 @@ export default function SettingsPage() {
                 <SectionCard title="Danger Zone">
                   <SettingRow
                     label="Clear all local data"
-                    description="Deletes all local storage data including projects and cached preferences."
+                    description="Deletes cached projects and local preferences from browser storage."
                   >
                     <button
                       onClick={() => setClearConfirm("all")}

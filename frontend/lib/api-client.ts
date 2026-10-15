@@ -238,10 +238,254 @@ export interface AIStatusResponse {
   providers: Record<string, ProviderConnectionStatus>;
 }
 
-export async function fetchAIProviders(): Promise<ProviderInfo[]> {
-  const res = await fetch(`${API_BASE_URL}/api/ai/providers`);
-  if (!res.ok) throw new Error("Failed to fetch AI providers");
+export interface GeminiModelOption {
+  id: string;
+  name: string;
+  tag: string;
+  description: string;
+  context_window: number;
+}
+
+export interface AIEngineStatusResponse {
+  engine: string;
+  provider_id: string;
+  connected: boolean;
+  auth_source: "server_env" | "byok" | "none";
+  selected_model: string;
+  masked_key: string;
+  available_models: GeminiModelOption[];
+  server_key_present: boolean;
+}
+
+export interface AIEngineTestResponse {
+  status: "success" | "error";
+  message: string;
+  latency_ms: number;
+  model?: string;
+  response?: string;
+}
+
+export async function fetchAIEngineStatus(): Promise<AIEngineStatusResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/ai/engine-status`);
+  if (!res.ok) throw new Error("Failed to fetch AI Engine status");
   return await res.json();
+}
+
+export async function testAIEngine(): Promise<AIEngineTestResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/ai/engine-test`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("Failed to ping AI Engine");
+  return await res.json();
+}
+
+export async function updateGeminiPreferences(prefs: {
+  selected_model?: string;
+  api_key?: string;
+}): Promise<any> {
+  const payload: any = { primary_provider: "gemini" };
+  if (prefs.selected_model) {
+    payload.provider_models = { gemini: prefs.selected_model };
+  }
+  if (prefs.api_key) {
+    payload.api_key = prefs.api_key;
+  }
+  const res = await fetch(`${API_BASE_URL}/api/ai/preferences`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to update AI Engine preferences");
+  return await res.json();
+}
+
+export async function disconnectGeminiBYOK(): Promise<any> {
+  const res = await fetch(`${API_BASE_URL}/api/ai/providers/gemini/disconnect`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("Failed to reset Gemini key configuration");
+  return await res.json();
+}
+
+// -----------------------------------------
+// Tessera Mind Planner API
+// -----------------------------------------
+
+export interface MindPlanNode {
+  id: string;
+  label: string;
+  sublabel: string;
+  tech: string;
+  type: string;
+  color: string;
+  x: number;
+  y: number;
+}
+
+export interface MindPlanEdge {
+  from: string;
+  to: string;
+  type: "direct" | "indirect";
+}
+
+export interface MindPlanTechStack {
+  layer: string;
+  technology: string;
+  rationale: string;
+  trade_off: string;
+}
+
+export interface MindPlanSchema {
+  table: string;
+  fields: string[];
+  relations: string;
+}
+
+export interface MindPlanRoadmapPhase {
+  phase: string;
+  time_estimate: string;
+  focus: string;
+  deliverables: string[];
+}
+
+export interface MindPlan {
+  title: string;
+  tagline: string;
+  overview: string;
+  nodes: MindPlanNode[];
+  edges: MindPlanEdge[];
+  tech_stack: MindPlanTechStack[];
+  database_schema: MindPlanSchema[];
+  roadmap: MindPlanRoadmapPhase[];
+  file_tree: string[];
+}
+
+export interface MindPlanResponse {
+  status: string;
+  plan: MindPlan;
+  error?: string;
+}
+
+export async function generateMindPlan(
+  prompt: string,
+  repoUrl?: string,
+  existingRepoContext?: string,
+  files?: Array<{ path: string; size: number; content: string }>
+): Promise<MindPlanResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/planner/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      prompt,
+      repo_url: repoUrl,
+      existing_repo_context: existingRepoContext,
+      files,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to generate mind plan");
+  return await res.json();
+}
+
+// -----------------------------------------
+// Tessera Hackathon Judge Evaluation API
+// -----------------------------------------
+
+export interface JudgeRubricCategory {
+  score: number;
+  comment: string;
+  is_real_backend?: boolean;
+}
+
+export interface JudgeRedFlag {
+  severity: "High" | "Medium" | "Low";
+  title: string;
+  description: string;
+  location: string;
+}
+
+export interface JudgeEvaluation {
+  verdict: string;
+  verdict_summary: string;
+  overall_score: number;
+  originality_score: number;
+  rubric: {
+    innovation: JudgeRubricCategory;
+    technical_execution: JudgeRubricCategory;
+    security_reliability: JudgeRubricCategory;
+    code_cleanliness: JudgeRubricCategory;
+    working_reality: JudgeRubricCategory;
+  };
+  key_strengths: string[];
+  red_flags: JudgeRedFlag[];
+  judge_feedback_markdown: string;
+}
+
+export interface JudgeEvaluationResponse {
+  status: string;
+  evaluation: JudgeEvaluation;
+  error?: string;
+}
+
+export async function evaluateHackathonRepo(
+  repoUrl: string,
+  hackathonCategory?: string,
+  files?: Array<{ path: string; size: number; content: string }>,
+  healthScore?: number
+): Promise<JudgeEvaluationResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/judge/evaluate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      repo_url: repoUrl,
+      hackathon_category: hackathonCategory,
+      files,
+      health_score: healthScore,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to evaluate repository for judges");
+  return await res.json();
+}
+
+// -----------------------------------------
+// Tessera Developer & Vibecoder Assistant API
+// -----------------------------------------
+
+export interface AssistantChatResponse {
+  status: string;
+  reply: string;
+  referenced_files: string[];
+  suggested_questions: string[];
+}
+
+export async function assistantChat(
+  repoUrl: string,
+  message: string,
+  history?: Array<{ role: string; content: string }>,
+  files?: Array<{ path: string; size: number; content: string }>
+): Promise<AssistantChatResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/assistant/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      repo_url: repoUrl,
+      message,
+      history,
+      files,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to communicate with Tessera Assistant");
+  return await res.json();
+}
+
+// Backwards-compatibility aliases
+export async function fetchAIProviders(): Promise<ProviderInfo[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/ai/providers`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchAIStatus(): Promise<AIStatusResponse> {
@@ -250,52 +494,18 @@ export async function fetchAIStatus(): Promise<AIStatusResponse> {
   return await res.json();
 }
 
-export async function authorizeOAuthProvider(providerId: string) {
-  const res = await fetch(`${API_BASE_URL}/api/ai/providers/${providerId}/oauth/authorize`);
-  if (!res.ok) throw new Error(`Failed to initiate OAuth for provider ${providerId}`);
-  const data = await res.json();
-  if (data.auth_url) {
-    window.location.href = data.auth_url;
-  }
-}
-
 export async function connectAIProvider(providerId: string, apiKey: string) {
-  const res = await fetch(`${API_BASE_URL}/api/ai/providers/${providerId}/connect`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ api_key: apiKey }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    throw new Error(data?.detail || `Failed to connect provider ${providerId}`);
-  }
-  return await res.json();
+  return await updateGeminiPreferences({ api_key: apiKey });
 }
 
 export async function disconnectAIProvider(providerId: string) {
-  const res = await fetch(`${API_BASE_URL}/api/ai/providers/${providerId}/disconnect`, {
-    method: "POST",
-  });
-  if (!res.ok) throw new Error(`Failed to disconnect provider ${providerId}`);
-  return await res.json();
+  return await disconnectGeminiBYOK();
 }
 
-export async function updateAIPreferences(prefs: {
-  primary_provider: string;
-  fallback_provider?: string;
-  provider_models?: Record<string, string>;
-}) {
-  const res = await fetch(`${API_BASE_URL}/api/ai/preferences`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(prefs),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    throw new Error(data?.detail || "Failed to update AI preferences");
-  }
-  return await res.json();
+export async function updateAIPreferences(prefs: any) {
+  return await updateGeminiPreferences(prefs);
 }
+
 
 
 

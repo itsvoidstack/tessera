@@ -1,10 +1,8 @@
 {
   "connections": {},
   "primary_provider": "gemini",
-  "fallback_provider": "claude",
+  "fallback_provider": null,
   "provider_models": {
-    "gemini": "gemini-3.6-flash",
-    "openai": "gpt-4o",
-    "claude": "claude-3-5-sonnet-latest"
+    "gemini": "gemini-2.5-flash"
   }
 }

@@ -34,23 +34,30 @@ class GeminiProvider(AIProvider):
     def get_models(self) -> List[ModelInfo]:
         return [
             ModelInfo(
-                id="gemini-3.6-flash",
-                name="Gemini 3.6 Flash",
-                description="Fast, highly efficient model optimized for code analysis and insights.",
+                id="gemini-2.5-flash",
+                name="Gemini 2.5 Flash",
+                description="Fast, highly efficient model optimized for code analysis, architecture planning, and insights.",
                 context_window=1000000,
                 is_default=True,
             ),
             ModelInfo(
                 id="gemini-1.5-pro",
                 name="Gemini 1.5 Pro",
-                description="Reasoning-intensive model for deep codebase understanding.",
+                description="High-reasoning model for complex codebase evaluation and deep audits.",
                 context_window=2000000,
                 is_default=False,
             ),
             ModelInfo(
                 id="gemini-1.5-flash",
                 name="Gemini 1.5 Flash",
-                description="Standard fast model for high-throughput repository scanning.",
+                description="Ultra-fast high-throughput model for rapid responses.",
+                context_window=1000000,
+                is_default=False,
+            ),
+            ModelInfo(
+                id="gemini-2.0-flash",
+                name="Gemini 2.0 Flash",
+                description="Next-generation multimodal model.",
                 context_window=1000000,
                 is_default=False,
             ),
@@ -60,7 +67,7 @@ class GeminiProvider(AIProvider):
         return ProviderInfo(
             id=self.provider_id,
             name=self.name,
-            description="Google's multimodal Gemini models offering fast inference and 1M+ token context windows.",
+            description="Google Gemini Intelligence Engine powers Tessera's mind planning, code auditing, and hackathon evaluation.",
             auth_type="api_key",
             supports_byok=True,
             supported_models=self.get_models(),
@@ -72,8 +79,7 @@ class GeminiProvider(AIProvider):
                 vision=True,
             ),
             official_auth_note=(
-                "Connect using your Google Gemini API Key (aistudio.google.com). "
-                "Note: Consumer Google Accounts do not currently offer a 3rd-party OAuth scope to consume personal web subscription quota via external backend APIs."
+                "Powered by your backend-attached GEMINI_API_KEY. You can also provide a custom Gemini API Key override in Settings."
             ),
         )
 
@@ -82,42 +88,50 @@ class GeminiProvider(AIProvider):
         api_key: Optional[str] = None,
         oauth_tokens: Optional[Dict[str, str]] = None
     ) -> genai.Client:
-        if oauth_tokens and oauth_tokens.get("access_token"):
-            creds = Credentials(
-                token=oauth_tokens["access_token"],
-                refresh_token=oauth_tokens.get("refresh_token"),
-                token_uri="https://oauth2.googleapis.com/token",
-            )
-            return genai.Client(credentials=creds)
-
-        key_to_use = api_key or self._server_api_key
+        key_to_use = api_key or self._server_api_key or os.getenv("GEMINI_API_KEY")
         if not key_to_use:
             raise ValueError("No Gemini API key configured on server or provided by user.")
         return genai.Client(api_key=key_to_use)
 
     async def generate(self, request: GenerateRequest) -> GenerateResponse:
-        model_name = request.model or "gemini-3.6-flash"
+        candidate_models = [
+            request.model or "gemini-2.5-flash",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+            "gemini-2.0-flash",
+        ]
+        # Remove duplicates while preserving order
+        candidate_models = list(dict.fromkeys([m for m in candidate_models if m]))
+
         client = self._get_client(api_key=request.api_key, oauth_tokens=request.oauth_tokens)
 
         prompt_text = request.prompt
         if request.system_instruction:
             prompt_text = f"System Instruction:\n{request.system_instruction}\n\nTask:\n{prompt_text}"
 
-        def _call_gemini():
-            return client.models.generate_content(
-                model=model_name,
-                contents=prompt_text,
-            )
+        last_error = None
+        for model_name in candidate_models:
+            try:
+                def _call_gemini(m=model_name):
+                    return client.models.generate_content(
+                        model=m,
+                        contents=prompt_text,
+                    )
 
-        loop = asyncio.get_running_loop()
-        res = await loop.run_in_executor(None, _call_gemini)
+                loop = asyncio.get_running_loop()
+                res = await loop.run_in_executor(None, _call_gemini)
 
-        return GenerateResponse(
-            text=res.text or "",
-            provider=self.provider_id,
-            model=model_name,
-            finish_reason="stop",
-        )
+                return GenerateResponse(
+                    text=res.text or "",
+                    provider=self.provider_id,
+                    model=model_name,
+                    finish_reason="stop",
+                )
+            except Exception as e:
+                last_error = e
+                continue
+
+        raise last_error or RuntimeError("Gemini content generation failed across all candidate models.")
 
     async def validate_connection(
         self,
@@ -128,10 +142,15 @@ class GeminiProvider(AIProvider):
             client = self._get_client(api_key=api_key, oauth_tokens=oauth_tokens)
 
             def _test():
-                return client.models.generate_content(
-                    model="gemini-3.6-flash",
-                    contents="Ping",
-                )
+                for test_model in ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
+                    try:
+                        return client.models.generate_content(
+                            model=test_model,
+                            contents="Ping test",
+                        )
+                    except Exception:
+                        continue
+                raise RuntimeError("All models failed validation ping.")
 
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, _test)
