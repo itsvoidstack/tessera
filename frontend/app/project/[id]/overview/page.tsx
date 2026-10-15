@@ -19,56 +19,79 @@ const SCORE_LABELS = [
   { key: "dependencies"  as const, label: "Dependencies" },
 ] as const;
 
-const ANALYSIS_MODULES = [
-  {
-    id: "audit",
-    name: "Security & Vulnerability Audit",
-    category: "Code Risk & Safety",
-    desc: "AST static analysis for dangerous dynamic calls, unsanitized inputs, and CVE vectors.",
-    route: "audit",
-    icon: Shield,
-    color: "text-emerald-500",
-    bgLight: "bg-emerald-50 dark:bg-emerald-950/40",
-  },
-  {
-    id: "architecture",
-    name: "System Architecture & Dependency DAG",
-    category: "System Structure",
-    desc: "Interactive multi-layer dependency graph visualizer of files, entrypoints, and services.",
-    route: "architecture",
-    icon: GitBranch,
-    color: "text-blue-500",
-    bgLight: "bg-blue-50 dark:bg-blue-950/40",
-  },
-  {
-    id: "judge",
-    name: "Hackathon Judge Scorecard & Rubric",
-    category: "Evaluation & Benchmarking",
-    desc: "Strict 60-second rubric scorecard (Innovation, Execution, Working Reality) and Devpost critique.",
-    route: "judge",
-    icon: Award,
-    color: "text-amber-500",
-    bgLight: "bg-amber-50 dark:bg-amber-950/40",
-  },
+interface AnalysisModule {
+  id: string;
+  stage: "pre" | "during" | "post";
+  stageLabel: string;
+  badgeColor: string;
+  name: string;
+  desc: string;
+  route: string;
+  icon: any;
+  color: string;
+  bgLight: string;
+}
+
+const ANALYSIS_MODULES: AnalysisModule[] = [
   {
     id: "planner",
-    name: "Mind Planner & Architectural Sprints",
-    category: "Ideation & Roadmapping",
-    desc: "Interactive DAG node-link canvas, tech stack trade-offs matrix, DB schema, and sprint milestones.",
+    stage: "pre",
+    stageLabel: "Pre-Production",
+    badgeColor: "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+    name: "Mind Planner & Architecture Studio",
+    desc: "Interactive DAG blueprint, tech stack decision matrix, and sprint roadmap.",
     route: "planner",
     icon: Compass,
     color: "text-purple-500",
     bgLight: "bg-purple-50 dark:bg-purple-950/40",
   },
   {
+    id: "architecture",
+    stage: "during",
+    stageLabel: "During Production",
+    badgeColor: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+    name: "System Architecture & DAG",
+    desc: "Interactive module boundary visualizer and import dependency mapping.",
+    route: "architecture",
+    icon: GitBranch,
+    color: "text-blue-500",
+    bgLight: "bg-blue-50 dark:bg-blue-950/40",
+  },
+  {
+    id: "audit",
+    stage: "during",
+    stageLabel: "During Production",
+    badgeColor: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+    name: "Security & Vulnerability Audit",
+    desc: "AST checks for dangerous code execution (eval/exec) and CVE risks.",
+    route: "audit",
+    icon: Shield,
+    color: "text-emerald-500",
+    bgLight: "bg-emerald-50 dark:bg-emerald-950/40",
+  },
+  {
     id: "notes",
-    name: "Developer Onboarding & Engineering Notes",
-    category: "Documentation & Knowledge",
-    desc: "AI onboarding guide, architectural synthesis, and personal dev notes synced to Supabase.",
+    stage: "during",
+    stageLabel: "During Production",
+    badgeColor: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+    name: "Developer Onboarding & Notes",
+    desc: "AI onboarding guide and engineering notes synced to database.",
     route: "notes",
     icon: StickyNote,
     color: "text-rose-500",
     bgLight: "bg-rose-50 dark:bg-rose-950/40",
+  },
+  {
+    id: "judge",
+    stage: "post",
+    stageLabel: "Post-Production",
+    badgeColor: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+    name: "Hackathon Judge Scorecard",
+    desc: "Strict 60-second rubric evaluation (Innovation, Execution, Working Reality).",
+    route: "judge",
+    icon: Award,
+    color: "text-amber-500",
+    bgLight: "bg-amber-50 dark:bg-amber-950/40",
   },
 ];
 
@@ -371,7 +394,7 @@ export default function OverviewPage({ params }: { params: Promise<{ id: string 
                 }`}
               >
                 <div>
-                  <div className="flex items-start justify-between gap-2 mb-2.5">
+                  <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2">
                       <div className={`w-8 h-8 rounded-lg ${module.bgLight} flex items-center justify-center flex-shrink-0`}>
                         <Icon size={16} className={module.color} />
@@ -380,24 +403,24 @@ export default function OverviewPage({ params }: { params: Promise<{ id: string 
                         <div className="text-xs font-bold text-gray-900 dark:text-white line-clamp-1">
                           {module.name}
                         </div>
-                        <div className="text-[10px] text-gray-400 dark:text-gray-500">
-                          {module.category}
-                        </div>
+                        <span className={`inline-block text-[10px] font-medium border px-1.5 py-0.2 rounded mt-0.5 ${module.badgeColor}`}>
+                          {module.stageLabel}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-4">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3">
                     {module.desc}
                   </p>
                 </div>
 
-                <div className="pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between gap-2">
+                <div className="pt-2.5 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between gap-2">
                   {isAnalyzed ? (
                     <>
                       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
                         <CheckCircle2 size={12} />
-                        Analyzed & Ready
+                        Ready
                       </span>
                       <Link
                         href={`/project/${project.id}/${module.route}`}
@@ -409,7 +432,7 @@ export default function OverviewPage({ params }: { params: Promise<{ id: string 
                   ) : (
                     <>
                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/40 px-2 py-0.5 rounded-md">
-                        Skipped in Scan
+                        Not Run
                       </span>
                       <button
                         onClick={() => handleRunMissedAnalysis(module.id, module.route)}

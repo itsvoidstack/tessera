@@ -41,13 +41,6 @@ class GeminiProvider(AIProvider):
                 is_default=True,
             ),
             ModelInfo(
-                id="gemini-1.5-pro",
-                name="Gemini 1.5 Pro",
-                description="High-reasoning model for complex codebase evaluation and deep audits.",
-                context_window=2000000,
-                is_default=False,
-            ),
-            ModelInfo(
                 id="gemini-1.5-flash",
                 name="Gemini 1.5 Flash",
                 description="Ultra-fast high-throughput model for rapid responses.",
@@ -55,10 +48,10 @@ class GeminiProvider(AIProvider):
                 is_default=False,
             ),
             ModelInfo(
-                id="gemini-2.0-flash",
-                name="Gemini 2.0 Flash",
-                description="Next-generation multimodal model.",
-                context_window=1000000,
+                id="gemini-1.5-pro",
+                name="Gemini 1.5 Pro",
+                description="High-reasoning model for complex codebase evaluation and deep audits.",
+                context_window=2000000,
                 is_default=False,
             ),
         ]
@@ -94,14 +87,22 @@ class GeminiProvider(AIProvider):
         return genai.Client(api_key=key_to_use)
 
     async def generate(self, request: GenerateRequest) -> GenerateResponse:
+        requested = request.model or "gemini-2.5-flash"
+        # Sanitize deprecated or non-existent models from old storage/configs
+        if requested in ("gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-3.6-flash", "models/gemini-2.0-flash"):
+            requested = "gemini-2.5-flash"
+
         candidate_models = [
-            request.model or "gemini-2.5-flash",
+            requested,
+            "gemini-2.5-flash",
             "gemini-1.5-flash",
             "gemini-1.5-pro",
-            "gemini-2.0-flash",
         ]
-        # Remove duplicates while preserving order
-        candidate_models = list(dict.fromkeys([m for m in candidate_models if m]))
+        # Remove deprecated models and deduplicate
+        candidate_models = list(dict.fromkeys([
+            m for m in candidate_models 
+            if m and m not in ("gemini-2.0-flash", "gemini-2.0-flash-exp", "models/gemini-2.0-flash")
+        ]))
 
         client = self._get_client(api_key=request.api_key, oauth_tokens=request.oauth_tokens)
 

@@ -52,7 +52,7 @@ class AIProviderStore:
         self.primary_provider: str = "gemini"
         self.fallback_provider: Optional[str] = "claude"
         self.provider_models: Dict[str, str] = {
-            "gemini": "gemini-3.6-flash",
+            "gemini": "gemini-2.5-flash",
             "openai": "gpt-4o",
             "claude": "claude-3-5-sonnet-latest",
         }
@@ -67,6 +67,10 @@ class AIProviderStore:
                     self.primary_provider = data.get("primary_provider", "gemini")
                     self.fallback_provider = data.get("fallback_provider", "claude")
                     self.provider_models = data.get("provider_models", self.provider_models)
+                    # Sanitize any legacy deprecated model strings
+                    gem_m = self.provider_models.get("gemini")
+                    if gem_m in ("gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-3.6-flash", "models/gemini-2.0-flash"):
+                        self.provider_models["gemini"] = "gemini-2.5-flash"
             except Exception as e:
                 logger.warning(f"Error loading AI provider storage: {e}")
 
